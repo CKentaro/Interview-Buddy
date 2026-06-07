@@ -22,3 +22,24 @@ export type SessionResponse = {
   createdAt: string;
   firstQuestion: QuestionResponse;
 };
+
+// UC03: 回答送信 & 深掘り質問生成
+
+export type SubmitAnswerRequest = {
+  questionId: string;
+  answerText: string;
+};
+
+export type NextQuestionResponse = {
+  id: string;
+  type: string;           // 'MAIN' | 'FOLLOW_UP'
+  text: string;
+  parentQuestionId: string | null;
+  speechText?: string;    // FOLLOW_UP のときのみ。フロントが TTS に渡す
+};
+
+export type AnswerResponse = {
+  answerId: string;
+  nextQuestion: NextQuestionResponse | null;
+  isSessionComplete: boolean;
+};
