@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -8,4 +5,82 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// 評価軸（4軸）
+enum EvaluationAxis {
+  REPRODUCIBILITY // 再現性
+  VALUES_JUDGMENT // 価値観 / 判断
+  SELF_AWARENESS  // 自己認識
+  WORLDVIEW       // 世界観 / 知的好奇心
+}
+
+// 質問種別
+enum QuestionType {
+  MAIN      // 本質問
+  FOLLOW_UP // 深掘り質問
+}
+
+model User {
+  id       String             @id @default(cuid())
+  name     String
+  email    String             @unique
+  googleId String             @unique
+  sessions InterviewSession[]
+}
+
+model InterviewSession {
+  id              String     @id @default(cuid())
+  startedAt       DateTime   @default(now())
+  endedAt         DateTime?
+  companyName     String?
+  industryMajor   String?
+  industryMinor   String?
+  jobMajor        String?
+  jobMinor        String?
+  selectionStage  String?
+  difficulty      String?
+  interviewerType String?
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions       Question[]
+  feedback        Feedback?
+}
+
+model Question {
+  id                String           @id @default(cuid())
+  type              QuestionType
+  content           String
+  displayOrder      Int
+  depthCount        Int              @default(0)
+  primaryAxis       EvaluationAxis?
+  sessionId         String
+  session           InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parentQuestionId  String?
+  parentQuestion    Question?        @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: Cascade)
+  followUpQuestions Question[]       @relation("QuestionFollowUps")
+  answer            Answer?
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  content    String
+  questionId String   @unique
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id              String           @id @default(cuid())
+  overallComment  String
+  sessionId       String           @unique
+  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  axisEvaluations AxisEvaluation[]
+}
+
+model AxisEvaluation {
+  id         String         @id @default(cuid())
+  axis       EvaluationAxis
+  comment    String
+  feedbackId String
+  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
 }
