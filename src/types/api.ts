@@ -43,3 +43,23 @@ export type AnswerResponse = {
   nextQuestion: NextQuestionResponse | null;
   isSessionComplete: boolean;
 };
+
+// UC06: フィードバック取得
+
+import { EvaluationAxis } from "@/generated/prisma/enums";
+
+export type AxisEvaluationResult = {
+  axis: EvaluationAxis;
+  axisLabel: string;
+  comment: string;
+};
+
+export type FeedbackResponse =
+  | { status: "generating" }
+  | { status: "failed" }
+  | {
+      status: "completed";
+      feedbackId: string;
+      overallComment: string;
+      axisEvaluations: AxisEvaluationResult[];
+    };

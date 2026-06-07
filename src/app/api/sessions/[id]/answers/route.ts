@@ -1,9 +1,11 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decideNextStep } from "@/lib/decideNextStep";
 import { generateFollowUpQuestion } from "@/lib/llm";
+import { runFeedbackGeneration } from "@/lib/feedbackGenerator";
 import { QuestionType } from "@/generated/prisma/enums";
 import type { FollowUpContext, QAPair } from "@/lib/llm";
 import type { AnswerResponse } from "@/types/api";
@@ -193,10 +195,17 @@ export async function POST(
   }
 
   // complete
-  // TODO: フィードバック生成を発火する（4-3 で実装）
   await prisma.interviewSession.update({
     where: { id: sessionId },
     data: { endedAt: new Date() },
+  });
+
+  after(async () => {
+    try {
+      await runFeedbackGeneration(sessionId);
+    } catch (err) {
+      console.error(`[feedback generation failed] sessionId=${sessionId}`, err);
+    }
   });
 
   const responseBody: AnswerResponse = {
