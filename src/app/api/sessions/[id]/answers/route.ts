@@ -9,6 +9,21 @@ import { runFeedbackGeneration } from "@/lib/feedbackGenerator";
 import { QuestionType } from "@/generated/prisma/enums";
 import type { FollowUpContext, QAPair } from "@/lib/llm";
 import type { AnswerResponse } from "@/types/api";
+import type { QuestionBank } from "@/types/questionBank";
+import bankData from "@/data/questionBank.json";
+
+const questionBank = bankData as QuestionBank;
+
+/** 質問バンクを全カテゴリ横断で displayText から speechText を引く */
+function findSpeechText(displayText: string): string | undefined {
+  const allQuestions = [
+    ...questionBank.selfAwareness.questions,
+    ...questionBank.reproducibility.questions,
+    ...questionBank.values.questions,
+    ...questionBank.worldview.questions,
+  ];
+  return allQuestions.find((q) => q.displayText === displayText)?.speechText;
+}
 
 const submitAnswerSchema = z.object({
   questionId: z.string().min(1),
@@ -188,6 +203,8 @@ export async function POST(
         type: QuestionType.MAIN,
         text: decision.question.content,
         parentQuestionId: null,
+        // Look up speechText from the in-memory question bank (no DB needed)
+        speechText: findSpeechText(decision.question.content),
       },
       isSessionComplete: false,
     };
