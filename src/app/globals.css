@@ -1,5 +1,97 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-manrope), var(--font-noto-jp), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+/* ============ Design tokens ============ */
+:root {
+  --ink: #0B1733;
+  --ink-2: #1A2848;
+  --ink-3: #5C6B8A;
+  --ink-4: #94A0B8;
+  --line: #E4E0D4;
+  --line-strong: #C9C3B0;
+  --bg: #F6F4ED;
+  --bg-card: #FFFFFF;
+  --bg-tint: #EFEBDD;
+  --bg-side: #FBFAF4;
+  --teal: oklch(0.72 0.12 195);
+  --teal-deep: oklch(0.55 0.11 195);
+  --teal-soft: oklch(0.95 0.03 195);
+  --blue: oklch(0.62 0.16 245);
+  --blue-soft: oklch(0.92 0.04 245);
+  --warm: oklch(0.62 0.13 55);
+  --warm-deep: oklch(0.45 0.13 50);
+  --warm-soft: oklch(0.96 0.04 60);
+  --warn: oklch(0.55 0.13 35);
+  --warn-bg: oklch(0.96 0.03 35);
+  --warn-line: oklch(0.86 0.08 35);
+}
+
+/* ============ Reset ============ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "palt" 1;
+  line-height: 1.6;
+  font-family: var(--font-manrope), var(--font-noto-jp), system-ui, sans-serif;
+}
+
+/* ============ Utility classes ============ */
+.mono {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ============ Animations ============ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%       { opacity: 1;    transform: scale(1.1); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.04); }
+}
+
+@keyframes thinking {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.08); }
+}
+
+@keyframes ripple {
+  from { transform: scale(0.8); opacity: 0.55; }
+  to   { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-3px); }
+}
+
+@keyframes accord {
+  from { opacity: 0; max-height: 0; }
+  to   { opacity: 1; max-height: 800px; }
 }
