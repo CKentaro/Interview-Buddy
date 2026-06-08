@@ -1,3 +1,59 @@
+// ─── Session list ────────────────────────────────────────────
+export type SessionListItemResponse = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  questionCount: number;
+  hasFeedback: boolean;
+};
+
+export type SessionListResponse = {
+  sessions: SessionListItemResponse[];
+};
+
+// ─── Session detail ───────────────────────────────────────────
+export type QuestionWithAnswer = {
+  id: string;
+  type: string;
+  content: string;
+  displayOrder: number;
+  primaryAxis: string | null;
+  parentQuestionId: string | null;
+  answer: { id: string; content: string } | null;
+};
+
+export type SessionDetailResponse = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  questions: QuestionWithAnswer[];
+};
+
+// ─── User me ─────────────────────────────────────────────────
+export type UserMeResponse = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  totalSessions: number;
+  lastSessionAt: string | null;
+};
+
+// ─── Session create ───────────────────────────────────────────
 export type CreateSessionRequest = {
   jobTitle?: string;
   companyName?: string;

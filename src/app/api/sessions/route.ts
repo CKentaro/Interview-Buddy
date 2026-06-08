@@ -5,9 +5,43 @@ import { prisma } from "@/lib/prisma";
 import { selectMainQuestions } from "@/lib/selectMainQuestions";
 import { QuestionType } from "@/generated/prisma/enums";
 import type { QuestionBank } from "@/types/questionBank";
+import type { SessionListResponse } from "@/types/api";
 import bankData from "@/data/questionBank.json";
 
 const questionBank = bankData as QuestionBank;
+
+export async function GET() {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rows = await prisma.interviewSession.findMany({
+    where: { userId },
+    orderBy: { startedAt: "desc" },
+    include: {
+      _count: { select: { questions: true } },
+      feedback: { select: { id: true } },
+    },
+  });
+
+  const body: SessionListResponse = {
+    sessions: rows.map((r) => ({
+      id: r.id,
+      startedAt: r.startedAt.toISOString(),
+      endedAt: r.endedAt?.toISOString() ?? null,
+      companyName: r.companyName,
+      industryMajor: r.industryMajor,
+      industryMinor: r.industryMinor,
+      jobMajor: r.jobMajor,
+      jobMinor: r.jobMinor,
+      selectionStage: r.selectionStage,
+      interviewerType: r.interviewerType,
+      questionCount: r._count.questions,
+      hasFeedback: r.feedback !== null,
+    })),
+  };
+  return NextResponse.json(body);
+}
 
 const createSessionSchema = z.object({
   jobTitle: z.string().optional(),
