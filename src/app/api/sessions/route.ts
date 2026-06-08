@@ -16,7 +16,9 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rows = await prisma.interviewSession.findMany({
-    where: { userId },
+    // 完了した（最後まで実施した）セッションのみを保存済みとして扱う。
+    // 中断されたセッションは endedAt が未設定のため一覧に含めない。
+    where: { userId, endedAt: { not: null } },
     orderBy: { startedAt: "desc" },
     include: {
       _count: { select: { questions: true } },

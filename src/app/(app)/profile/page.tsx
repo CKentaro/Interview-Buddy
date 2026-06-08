@@ -90,9 +90,19 @@ export default function ProfilePage() {
 
         {/* hero */}
         <div style={{ marginBottom: 48, display: "flex", alignItems: "flex-start", gap: 32 }}>
-          <div style={{ width: 80, height: 80, borderRadius: 999, background: "var(--ink)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 28, flexShrink: 0, fontFamily: "var(--font-noto-jp), sans-serif" }}>
-            {user?.name?.charAt(0) ?? "?"}
-          </div>
+          {user?.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.image}
+              alt={user.name ?? "ユーザー"}
+              referrerPolicy="no-referrer"
+              style={{ width: 80, height: 80, borderRadius: 999, objectFit: "cover", border: "1px solid var(--line)", flexShrink: 0 }}
+            />
+          ) : (
+            <div style={{ width: 80, height: 80, borderRadius: 999, background: "var(--ink)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 28, flexShrink: 0, fontFamily: "var(--font-noto-jp), sans-serif" }}>
+              {user?.name?.charAt(0) ?? "?"}
+            </div>
+          )}
           <div>
             <div className="mono" style={{ fontSize: 11, letterSpacing: 1.2, color: "var(--teal-deep)", marginBottom: 8 }}>— YOUR PROFILE</div>
             <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: -0.5, margin: 0, fontFamily: "var(--font-noto-jp), sans-serif" }}>

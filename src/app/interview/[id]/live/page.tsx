@@ -328,6 +328,18 @@ export default function LivePage() {
     }
   };
 
+  // 中断：途中まで作成されたセッションを削除し、データを残さずHOMEへ戻る
+  const handleAbort = async () => {
+    stopCurrentAudio();
+    try {
+      await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+    } catch (e) {
+      console.error("セッションの削除に失敗しました", e);
+    }
+    sessionStorage.removeItem("ib-session");
+    router.push("/home");
+  };
+
   // ── Preparing screen (shown while initial TTS is being fetched) ──
   if (status === "preparing" || !question) {
     return (
@@ -472,7 +484,7 @@ export default function LivePage() {
       {showAbort && (
         <AbortModal
           onCancel={() => setShowAbort(false)}
-          onConfirm={() => { stopCurrentAudio(); router.push("/home"); }}
+          onConfirm={handleAbort}
         />
       )}
     </div>

@@ -10,28 +10,28 @@ import { IconArrowRight, IconArrowLeft, IconCheck, IconPlay, IconCaret } from "@
  * Static data
  * ============================================================ */
 const INDUSTRY: Record<string, string[]> = {
-  "IT・通信":      ["SaaS", "Web系", "受託開発", "インフラ", "ゲーム", "ハードウェア"],
-  "金融・保険":    ["銀行", "証券", "保険", "信託・アセットマネジメント", "FinTech"],
-  "メーカー":      ["自動車", "電機・精密", "食品・飲料", "化学・素材", "機械", "日用品"],
-  "商社":          ["総合商社", "鉄鋼・金属", "食品", "IT・電機", "繊維・化学"],
-  "コンサル":      ["戦略", "総合", "IT・テクノロジー", "人事・組織", "シンクタンク"],
-  "医療・製薬":    ["製薬", "医療機器", "バイオ・創薬", "病院・医療法人", "ヘルスケアIT"],
-  "小売・流通":    ["百貨店・GMS", "専門店", "EC", "コンビニ", "物流"],
-  "広告・メディア":["広告代理店", "出版", "放送・新聞", "デジタルメディア", "PR・マーケ"],
-  "公務員・教育":  ["国家公務員", "地方公務員", "教育・大学", "NPO・NGO"],
-  "その他":        ["その他"],
+  "メーカー・商社":      ["自動車", "電気・電子", "機械", "化学・素材", "食品・飲料", "医薬品・医療機器", "家具・インテリア", "衣料・アパレル", "総合商社", "専門商社"],
+  "金融・保険":          ["銀行", "証券", "保険", "クレジットカード・信販", "リース", "資産運用・投資顧問"],
+  "IT・インターネット":  ["SIer・システム開発", "Web・インターネットサービス", "ソフトウェア・SaaS", "通信・インフラ", "ハードウェア・半導体", "ゲーム", "セキュリティ", "AI・データ", "EC・広告"],
+  "流通・小売・サービス":["百貨店", "スーパーマーケット", "コンビニエンスストア", "専門店（ファッション）", "専門店（電気・電子）", "通信販売・Eコマース", "ホテル・旅行", "飲食業", "理美容・エステ", "教育・研修"],
+  "建築・不動産":        ["ゼネコン・建築", "ハウスメーカー", "設計・建築", "不動産開発", "不動産仲介・管理"],
+  "メディカル":          ["病院・クリニック", "製薬会社", "医療機器メーカー", "看護・介護施設", "医療関連サービス"],
+  "マスコミ・メディア":  ["新聞", "テレビ", "ラジオ", "出版", "広告代理店", "インターネットメディア"],
+  "コンサルティング・士業":["経営コンサルティング", "ITコンサルティング", "人事コンサルティング", "弁護士", "公認会計士", "税理士"],
+  "運輸・物流":          ["航空", "鉄道", "海運", "陸運・運送", "物流・倉庫"],
+  "エネルギー":          ["電力", "ガス", "石油・石炭", "再生エネルギー"],
+  "エンターテインメント":["ゲーム・アミューズメント", "映画・映像", "音楽・音響", "スポーツ"],
 };
 const INDUSTRY_LARGE = Object.keys(INDUSTRY);
 
 const ROLE: Record<string, string[]> = {
-  "エンジニア":    ["バックエンド", "フロントエンド", "インフラ", "モバイル", "データ", "QA"],
-  "営業":          ["法人営業", "個人営業", "インサイドセールス", "カスタマーサクセス", "営業企画"],
-  "マーケティング":["デジタルマーケ", "ブランドマーケ", "グロース", "PR", "リサーチ"],
-  "デザイナー":    ["UI/UX", "グラフィック", "プロダクト", "ブランド", "モーション"],
-  "コンサルタント":["戦略コンサル", "ITコンサル", "人事・組織コンサル", "業務コンサル", "リサーチャー"],
-  "企画・PM":      ["プロダクトマネージャー", "プロジェクトマネージャー", "事業企画", "経営企画", "新規事業"],
-  "経営管理":      ["経理・財務", "人事", "法務", "総務", "内部監査"],
-  "その他":        ["その他"],
+  "技術系":        ["ソフトウェアエンジニア", "システムエンジニア", "ネットワークエンジニア", "クラウドエンジニア", "データベースエンジニア", "セキュリティエンジニア", "モバイルアプリ開発者", "Webエンジニア", "フルスタックエンジニア", "DevOpsエンジニア", "MLエンジニア", "データサイエンティスト", "組み込みエンジニア", "その他エンジニア"],
+  "事務系":        ["総務", "人事", "経理", "財務", "法務", "広報", "経営企画", "マーケ", "営業企画"],
+  "営業":          ["法人営業", "個人営業", "海外営業", "技術営業", "インサイドセールス", "カスタマーサクセス"],
+  "クリエイティブ":["Webデザイナー", "グラフィックデザイナー", "UIデザイナー", "UXデザイナー", "イラストレーター", "ゲームデザイナー"],
+  "コンサルティング":["経営コンサル", "ITコンサル", "人事コンサル", "財務コンサル"],
+  "医療":          ["医師", "看護師", "薬剤師", "臨床検査技師", "理学療法士", "作業療法士"],
+  "士業":          ["弁護士", "公認会計士", "税理士", "司法書士", "行政書士", "社会保険労務士", "弁理士"],
 };
 const ROLE_LARGE = Object.keys(ROLE);
 
@@ -55,13 +55,11 @@ const INTERVIEWERS = [
 const STEP_LABELS = ["業界・企業", "職種", "選考設定", "確認"];
 
 const SCREENS = [
-  { id: "ind-large",  mainStep: 1 },
-  { id: "ind-small",  mainStep: 1 },
-  { id: "company",    mainStep: 1 },
-  { id: "role-large", mainStep: 2 },
-  { id: "role-small", mainStep: 2 },
-  { id: "selection",  mainStep: 3 },
-  { id: "confirm",    mainStep: 4 },
+  { id: "industry",  mainStep: 1 },
+  { id: "company",   mainStep: 1 },
+  { id: "role",      mainStep: 2 },
+  { id: "selection", mainStep: 3 },
+  { id: "confirm",   mainStep: 4 },
 ] as const;
 
 type FormData = {
@@ -230,25 +228,28 @@ function Stepper({ step }: { step: number }) {
 /* ============================================================
  * Screen components
  * ============================================================ */
-function ScreenIndLarge({ data, setData, onSample }: { data: FormData; setData: (d: FormData) => void; onSample: () => void }) {
+function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div>
-      <StepHeading kicker="STEP 01 · 業界・企業 (1 / 3)" title="志望業界を選んでください。" hint="まずは大きなくくりから。あとから変更できます。" onSample={onSample} />
-      <ScreenCard>
-        <ChoiceGrid options={INDUSTRY_LARGE} value={data.industryLarge} onChange={(v) => setData({ ...data, industryLarge: v, industrySmall: data.industryLarge === v ? data.industrySmall : "" })} cols={5} />
-      </ScreenCard>
+    <div className="mono" style={{ fontSize: 10, letterSpacing: 1, color: "var(--ink-4)", marginBottom: 12 }}>
+      {children}
     </div>
   );
 }
 
-function ScreenIndSmall({ data, setData }: { data: FormData; setData: (d: FormData) => void }) {
+function ScreenIndustry({ data, setData, onSample }: { data: FormData; setData: (d: FormData) => void; onSample: () => void }) {
   const subs = data.industryLarge ? (INDUSTRY[data.industryLarge] ?? []) : [];
   return (
     <div>
-      <StepHeading kicker="STEP 01 · 業界・企業 (2 / 3)" title="詳細な業種を選んでください。" hint="大分類で選んだ業界のなかから、より近いものを1つ選びましょう。" />
-      <ContextChip items={[{ label: "業界・大分類", value: data.industryLarge }]} />
+      <StepHeading kicker="STEP 01 · 業界 (1 / 2)" title="志望業界を選んでください。" hint="大分類を選ぶと、対応する業種が下に表示されます。それぞれ1つずつ選びましょう。" onSample={onSample} />
       <ScreenCard>
-        <ChoiceGrid options={subs} value={data.industrySmall} onChange={(v) => setData({ ...data, industrySmall: v })} cols={3} />
+        <FieldLabel>業界・大分類</FieldLabel>
+        <ChoiceGrid options={INDUSTRY_LARGE} value={data.industryLarge} onChange={(v) => setData({ ...data, industryLarge: v, industrySmall: data.industryLarge === v ? data.industrySmall : "" })} cols={4} />
+        {data.industryLarge && (
+          <div style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
+            <FieldLabel>業種・小分類（{data.industryLarge}）</FieldLabel>
+            <ChoiceGrid options={subs} value={data.industrySmall} onChange={(v) => setData({ ...data, industrySmall: v })} cols={3} />
+          </div>
+        )}
       </ScreenCard>
     </div>
   );
@@ -258,7 +259,7 @@ function ScreenCompany({ data, setData }: { data: FormData; setData: (d: FormDat
   const [focused, setFocused] = useState(false);
   return (
     <div>
-      <StepHeading kicker="STEP 01 · 業界・企業 (3 / 3)" title="志望企業の名前を教えてください。" hint="正式名称が分かれば略称でも構いません。" />
+      <StepHeading kicker="STEP 01 · 企業 (2 / 2)" title="志望企業の名前を教えてください。" hint="正式名称が分かれば略称でも構いません。" />
       <ContextChip items={[{ label: "業界", value: `${data.industryLarge} / ${data.industrySmall}` }]} />
       <ScreenCard padding="40px 44px">
         <div className="mono" style={{ fontSize: 10, letterSpacing: 1, color: "var(--ink-4)", marginBottom: 8 }}>COMPANY NAME</div>
@@ -281,25 +282,20 @@ function ScreenCompany({ data, setData }: { data: FormData; setData: (d: FormDat
   );
 }
 
-function ScreenRoleLarge({ data, setData }: { data: FormData; setData: (d: FormData) => void }) {
-  return (
-    <div>
-      <StepHeading kicker="STEP 02 · 職種 (1 / 2)" title="志望する職種を選んでください。" hint="AI が職種特有の論点を準備します。" />
-      <ScreenCard>
-        <ChoiceGrid options={ROLE_LARGE} value={data.roleLarge} onChange={(v) => setData({ ...data, roleLarge: v, roleSmall: data.roleLarge === v ? data.roleSmall : "" })} cols={4} />
-      </ScreenCard>
-    </div>
-  );
-}
-
-function ScreenRoleSmall({ data, setData }: { data: FormData; setData: (d: FormData) => void }) {
+function ScreenRole({ data, setData }: { data: FormData; setData: (d: FormData) => void }) {
   const subs = data.roleLarge ? (ROLE[data.roleLarge] ?? []) : [];
   return (
     <div>
-      <StepHeading kicker="STEP 02 · 職種 (2 / 2)" title="詳細な職種を選んでください。" hint="より近いものを1つ選びましょう。" />
-      <ContextChip items={[{ label: "職種・大分類", value: data.roleLarge }]} />
+      <StepHeading kicker="STEP 02 · 職種" title="志望する職種を選んでください。" hint="大分類を選ぶと、対応する職種が下に表示されます。AI が職種特有の論点を準備します。" />
       <ScreenCard>
-        <ChoiceGrid options={subs} value={data.roleSmall} onChange={(v) => setData({ ...data, roleSmall: v })} cols={3} />
+        <FieldLabel>職種・大分類</FieldLabel>
+        <ChoiceGrid options={ROLE_LARGE} value={data.roleLarge} onChange={(v) => setData({ ...data, roleLarge: v, roleSmall: data.roleLarge === v ? data.roleSmall : "" })} cols={4} />
+        {data.roleLarge && (
+          <div style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid var(--line)" }}>
+            <FieldLabel>職種・小分類（{data.roleLarge}）</FieldLabel>
+            <ChoiceGrid options={subs} value={data.roleSmall} onChange={(v) => setData({ ...data, roleSmall: v })} cols={3} />
+          </div>
+        )}
       </ScreenCard>
     </div>
   );
@@ -451,11 +447,9 @@ export default function SetupPage() {
   const cur = SCREENS[idx]!;
 
   const valid = [
-    !!data.industryLarge,
-    !!data.industrySmall,
+    !!(data.industryLarge && data.industrySmall),
     !!data.company.trim(),
-    !!data.roleLarge,
-    !!data.roleSmall,
+    !!(data.roleLarge && data.roleSmall),
     !!(data.stage && data.interviewer), // voiceEnabled is boolean, always set
     true,
   ][idx] ?? false;
@@ -497,9 +491,9 @@ export default function SetupPage() {
   };
 
   const fillSample = () => setData({
-    industryLarge: "コンサル", industrySmall: "戦略",
+    industryLarge: "コンサルティング・士業", industrySmall: "経営コンサルティング",
     company: "Boston Consulting Group",
-    roleLarge: "コンサルタント", roleSmall: "戦略コンサル",
+    roleLarge: "コンサルティング", roleSmall: "経営コンサル",
     stage: "second", interviewer: "neutral", voiceEnabled: true,
   });
 
@@ -525,13 +519,11 @@ export default function SetupPage() {
 
       <div style={{ padding: "40px 48px 80px", maxWidth: 1080, margin: "0 auto" }}>
         <Stepper step={cur.mainStep} />
-        {idx === 0 && <ScreenIndLarge data={data} setData={setData} onSample={fillSample} />}
-        {idx === 1 && <ScreenIndSmall data={data} setData={setData} />}
-        {idx === 2 && <ScreenCompany data={data} setData={setData} />}
-        {idx === 3 && <ScreenRoleLarge data={data} setData={setData} />}
-        {idx === 4 && <ScreenRoleSmall data={data} setData={setData} />}
-        {idx === 5 && <ScreenSelection data={data} setData={setData} />}
-        {idx === 6 && <ScreenConfirm data={data} />}
+        {idx === 0 && <ScreenIndustry data={data} setData={setData} onSample={fillSample} />}
+        {idx === 1 && <ScreenCompany data={data} setData={setData} />}
+        {idx === 2 && <ScreenRole data={data} setData={setData} />}
+        {idx === 3 && <ScreenSelection data={data} setData={setData} />}
+        {idx === 4 && <ScreenConfirm data={data} />}
         {startError && (
           <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--warn-bg)", border: "1px solid var(--warn-line)", borderRadius: 10, fontSize: 13, color: "var(--warn)", fontFamily: "var(--font-noto-jp), sans-serif" }}>
             {startError}

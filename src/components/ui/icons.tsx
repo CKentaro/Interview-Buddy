@@ -116,6 +116,25 @@ export function IconChevron({ open, size = 14 }: { open?: boolean; size?: number
   );
 }
 
+export function IconSidebar({ collapsed, size = 16 }: { collapsed?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.25" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="6.25" y1="2.75" x2="6.25" y2="13.25" stroke="currentColor" strokeWidth="1.3" />
+      {/* Filled left panel when expanded; hollow when collapsed */}
+      <rect
+        x="1.75"
+        y="2.75"
+        width="4.5"
+        height="10.5"
+        rx="2.25"
+        fill="currentColor"
+        style={{ opacity: collapsed ? 0 : 0.32, transition: "opacity .2s ease" }}
+      />
+    </svg>
+  );
+}
+
 export function IconPlay({ size = 12 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
