@@ -275,7 +275,7 @@ export default function LivePage() {
       const res = await fetch(`/api/sessions/${sessionId}/answers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId: question.id, answerText }),
+        body: JSON.stringify({ questionId: question.id, answerText, voiceEnabled }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
 

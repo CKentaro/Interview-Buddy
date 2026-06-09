@@ -63,6 +63,7 @@ export type CreateSessionRequest = {
   selectionStage?: string;
   difficulty?: string;
   interviewerType?: string;
+  voiceEnabled?: boolean;
 };
 
 export type QuestionResponse = {
@@ -84,6 +85,7 @@ export type SessionResponse = {
 export type SubmitAnswerRequest = {
   questionId: string;
   answerText: string;
+  voiceEnabled?: boolean;
 };
 
 export type NextQuestionResponse = {

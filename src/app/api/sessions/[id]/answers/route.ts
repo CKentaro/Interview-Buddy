@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { decideNextStep } from "@/lib/decideNextStep";
-import { generateFollowUpQuestion } from "@/lib/llm";
+import { generateFollowUpQuestion, generateMainQuestionSpeech } from "@/lib/llm";
 import { runFeedbackGeneration } from "@/lib/feedbackGenerator";
 import { QuestionType } from "@/generated/prisma/enums";
 import type { FollowUpContext, QAPair } from "@/lib/llm";
@@ -28,6 +28,7 @@ function findSpeechText(displayText: string): string | undefined {
 const submitAnswerSchema = z.object({
   questionId: z.string().min(1),
   answerText: z.string().min(1),
+  voiceEnabled: z.boolean().optional(),
 });
 
 export async function POST(
@@ -59,7 +60,7 @@ export async function POST(
       { status: 400 },
     );
   }
-  const { questionId, answerText } = parsed.data;
+  const { questionId, answerText, voiceEnabled } = parsed.data;
 
   // 4. セッション認可チェック（このユーザーのセッションか）
   const interviewSession = await prisma.interviewSession.findFirst({
@@ -196,6 +197,24 @@ export async function POST(
   }
 
   if (decision.action === "next_main") {
+    // speechText（読み上げ文）の決定。
+    // 静的なバンクの speechText を基準にしつつ、音声 ON のときは直前回答への
+    // リアクションを織り込んだ発話を毎回生成する（失敗時は静的にフォールバック）。
+    const staticSpeech = findSpeechText(decision.question.content);
+    let speechText = staticSpeech;
+    if (voiceEnabled) {
+      try {
+        const generated = await generateMainQuestionSpeech({
+          previousQuestionText: answeredQuestion.content,
+          previousAnswerText: answerText,
+          nextQuestionText: staticSpeech ?? decision.question.content,
+        });
+        speechText = generated.speechText;
+      } catch (err) {
+        console.error("Main question speech generation error:", err);
+      }
+    }
+
     const responseBody: AnswerResponse = {
       answerId: savedAnswer.id,
       nextQuestion: {
@@ -203,8 +222,7 @@ export async function POST(
         type: QuestionType.MAIN,
         text: decision.question.content,
         parentQuestionId: null,
-        // Look up speechText from the in-memory question bank (no DB needed)
-        speechText: findSpeechText(decision.question.content),
+        speechText,
       },
       isSessionComplete: false,
     };

@@ -3,12 +3,20 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { selectMainQuestions } from "@/lib/selectMainQuestions";
+import { generateOpeningSpeech } from "@/lib/llm";
 import { QuestionType } from "@/generated/prisma/enums";
 import type { QuestionBank } from "@/types/questionBank";
 import type { SessionListResponse } from "@/types/api";
 import bankData from "@/data/questionBank.json";
 
 const questionBank = bankData as QuestionBank;
+
+// 選考フェーズ ID → 表示ラベル（冒頭挨拶の生成に使う）
+const STAGE_LABELS: Record<string, string> = {
+  first: "1次面接",
+  second: "2次面接",
+  final: "最終面接",
+};
 
 export async function GET() {
   const session = await auth();
@@ -54,6 +62,7 @@ const createSessionSchema = z.object({
   selectionStage: z.string().optional(),
   difficulty: z.string().optional(),
   interviewerType: z.string().optional(),
+  voiceEnabled: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -87,6 +96,7 @@ export async function POST(request: Request) {
     selectionStage,
     difficulty,
     interviewerType,
+    voiceEnabled,
   } = parsed.data;
 
   const selectedQuestions = selectMainQuestions(questionBank);
@@ -128,6 +138,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 
+  // 音声 ON のときだけ、冒頭挨拶＋最初の質問の読み上げ文を毎回生成する。
+  // 生成に失敗してもバンクの静的 speechText にフォールバックして面接は継続。
+  let firstSpeechText = firstSelected.speechText;
+  if (voiceEnabled) {
+    try {
+      const opening = await generateOpeningSpeech({
+        companyName: companyName ?? null,
+        selectionStageLabel: selectionStage
+          ? STAGE_LABELS[selectionStage] ?? null
+          : null,
+        firstQuestionText: firstSelected.speechText,
+      });
+      firstSpeechText = opening.speechText;
+    } catch (err) {
+      console.error("Opening speech generation error:", err);
+    }
+  }
+
   const body_: import("@/types/api").SessionResponse = {
     sessionId: interviewSession.id,
     createdAt: interviewSession.startedAt.toISOString(),
@@ -135,7 +163,7 @@ export async function POST(request: Request) {
       id: firstDbQuestion.id,
       type: firstDbQuestion.type,
       text: firstDbQuestion.content,
-      speechText: firstSelected.speechText,
+      speechText: firstSpeechText,
       parentQuestionId: firstDbQuestion.parentQuestionId,
     },
   };

@@ -471,6 +471,7 @@ export default function SetupPage() {
           jobMinor: data.roleSmall,
           selectionStage: data.stage,
           interviewerType: data.interviewer,
+          voiceEnabled: data.voiceEnabled,
         }),
       });
       if (!res.ok) throw new Error(`${res.status}`);

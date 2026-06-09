@@ -181,3 +181,81 @@ export async function generateFollowUpQuestion(
 
   return result.output;
 }
+
+// ── メイン質問の読み上げ文（speechText）生成 ──
+// displayText は質問バンクの静的テキストを使い、音声で読み上げる発話だけ
+// 毎回生成する。冒頭の挨拶や直前回答へのリアクションを織り込み、会話の
+// つながりを自然にすることが目的。
+
+const speechSchema = z.object({ speechText: z.string() });
+
+export type OpeningSpeechContext = {
+  companyName: string | null;
+  selectionStageLabel: string | null; // 例: "1次面接"
+  firstQuestionText: string; // 最初のメイン質問の読み上げ文（バンクの speechText）
+};
+
+function buildOpeningSpeechPrompt(context: OpeningSpeechContext): string {
+  return `あなたは就職面接の面接官です。これから面接を始めます。応募者への冒頭の挨拶と、最初の質問の読み上げ文を、ひと続きの自然な発話として作成してください。
+
+## 面接の情報
+- 企業名: ${context.companyName?.trim() || "（指定なし）"}
+- 選考フェーズ: ${context.selectionStageLabel?.trim() || "（指定なし）"}
+
+## 最初の質問
+${context.firstQuestionText}
+
+## 指示
+- 面接官として、自然な会話口調の発話にする。
+- まず歓迎の挨拶をする。企業名・選考フェーズが指定されていれば自然に織り込む（例:「本日は〇〇の1次面接にお越しいただきありがとうございます」）。「（指定なし）」の要素は文に含めない。
+- 挨拶のあと、最初の質問へ自然に導入し、質問内容を述べる。
+- 冒頭の挨拶の言い回しは固定しない。毎回自由に、自然に決めてよい。
+- speechText には、読み上げる発話文のみを入れる（ナレーションやト書きは含めない）。`;
+}
+
+export async function generateOpeningSpeech(
+  context: OpeningSpeechContext,
+): Promise<{ speechText: string }> {
+  const google = createGemini();
+  const result = await generateText({
+    model: google("gemini-2.5-flash-lite"),
+    output: Output.object({ schema: speechSchema }),
+    prompt: buildOpeningSpeechPrompt(context),
+  });
+  return result.output;
+}
+
+export type MainQuestionSpeechContext = {
+  previousQuestionText: string; // 直前に回答した質問
+  previousAnswerText: string; // その回答
+  nextQuestionText: string; // 次のメイン質問の読み上げ文（バンクの speechText）
+};
+
+function buildMainQuestionSpeechPrompt(context: MainQuestionSpeechContext): string {
+  return `あなたは就職面接の面接官です。応募者の直前の回答に軽くリアクションしたうえで、次の質問へ自然につなげる読み上げ文を作成してください。
+
+## 直前のやり取り
+Q: ${context.previousQuestionText}
+A: ${context.previousAnswerText}
+
+## 次の質問
+${context.nextQuestionText}
+
+## 指示
+- 面接官として、自然な会話口調の発話にする。
+- まず直前の回答を受け止める一言リアクション（相槌・共感など）を入れる。大げさな評価や断定、点数付けはしない。
+- そのうえで、次の質問へ自然に話題を切り替え、質問内容を述べる。
+- speechText には、読み上げる発話文のみを入れる（ナレーションやト書きは含めない）。`;
+}
+
+export async function generateMainQuestionSpeech(
+  context: MainQuestionSpeechContext,
+): Promise<{ speechText: string }> {
+  const google = createGemini();
+  const result = await generateText({
+    model: google("gemini-2.5-flash-lite"),
+    output: Output.object({ schema: speechSchema }),
+    prompt: buildMainQuestionSpeechPrompt(context),
+  });
+  return result.output;
+}
