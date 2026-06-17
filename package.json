@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "vitest",
     "lint": "eslint",
     "db:up": "docker compose --env-file .env.local up -d",
     "db:down": "docker compose --env-file .env.local down",
@@ -27,16 +28,22 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "jsdom": "^29.1.1",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.9"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
