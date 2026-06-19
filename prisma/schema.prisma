@@ -9,3 +9,129 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ── Enum ──────────────────────────────────────────────────────────────────────
+
+// 評価軸（4軸）
+enum EvaluationAxis {
+  REPRODUCIBILITY // 再現性
+  VALUES_JUDGMENT // 価値観 / 判断
+  SELF_AWARENESS // 自己認識
+  WORLDVIEW // 世界観 / 知的好奇心
+}
+
+// 質問種別
+enum QuestionType {
+  MAIN // 本質問
+  FOLLOW_UP // 深掘り質問
+}
+
+// ── Auth.js (next-auth v5) が必要とするテーブル ──────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String? // Auth.js は optional を要求
+  email         String    @unique
+  emailVerified DateTime? // Auth.js: メール確認日時
+  image         String? // Auth.js: プロフィール画像 URL
+
+  // Auth.js リレーション
+  accounts Account[]
+  sessions Session[]
+
+  // アプリ固有リレーション
+  interviewSessions InterviewSession[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String // Google OAuth では sub クレームの値
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── アプリ固有モデル ───────────────────────────────────────────────────────────
+
+model InterviewSession {
+  id              String     @id @default(cuid())
+  startedAt       DateTime   @default(now())
+  endedAt         DateTime?
+  companyName     String?
+  industryMajor   String?
+  industryMinor   String?
+  jobMajor        String?
+  jobMinor        String?
+  selectionStage  String?
+  difficulty      String?
+  interviewerType String?
+  userId          String
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questions       Question[]
+  feedback        Feedback?
+}
+
+model Question {
+  id                String           @id @default(cuid())
+  type              QuestionType
+  content           String
+  displayOrder      Int
+  depthCount        Int              @default(0)
+  primaryAxis       EvaluationAxis?
+  sessionId         String
+  session           InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parentQuestionId  String?
+  parentQuestion    Question?        @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: Cascade)
+  followUpQuestions Question[]       @relation("QuestionFollowUps")
+  answer            Answer?
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  content    String
+  questionId String   @unique
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id              String           @id @default(cuid())
+  overallComment  String
+  sessionId       String           @unique
+  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  axisEvaluations AxisEvaluation[]
+}
+
+model AxisEvaluation {
+  id         String         @id @default(cuid())
+  axis       EvaluationAxis
+  comment    String
+  feedbackId String
+  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+}
