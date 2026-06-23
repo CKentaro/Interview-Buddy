@@ -1,3 +1,5 @@
+import { SignOutButton } from "@/components/auth/SignOutButton";
+
 /**
  * シェル付き画面の共通レイアウト（サイドバー/トップバー等）。
  * 認証は親の (app)/layout.tsx で済んでいるので、ここは見た目の枠だけを担う。
@@ -8,5 +10,12 @@
 export default function ShellLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <>{children}</>;
+  return (
+    <>
+      <header className="flex justify-end px-6 py-3">
+        <SignOutButton />
+      </header>
+      {children}
+    </>
+  );
 }
