@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -7,17 +10,19 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Enum ──────────────────────────────────────────────────────────────────────
+
 // 評価軸（4軸）
 enum EvaluationAxis {
   REPRODUCIBILITY // 再現性
   VALUES_JUDGMENT // 価値観 / 判断
-  SELF_AWARENESS  // 自己認識
-  WORLDVIEW       // 世界観 / 知的好奇心
+  SELF_AWARENESS // 自己認識
+  WORLDVIEW // 世界観 / 知的好奇心
 }
 
 // 質問種別
 enum QuestionType {
-  MAIN      // 本質問
+  MAIN // 本質問
   FOLLOW_UP // 深掘り質問
 }
 
@@ -25,16 +30,16 @@ enum QuestionType {
 
 model User {
   id            String    @id @default(cuid())
-  name          String?                          // Auth.js は optional を要求
+  name          String? // Auth.js は optional を要求
   email         String    @unique
-  emailVerified DateTime?                        // Auth.js: メール確認日時
-  image         String?                          // Auth.js: プロフィール画像 URL
+  emailVerified DateTime? // Auth.js: メール確認日時
+  image         String? // Auth.js: プロフィール画像 URL
 
   // Auth.js リレーション
   accounts Account[]
   sessions Session[]
 
-  // アプリ固有リレーション（旧 sessions → interviewSessions に改名）
+  // アプリ固有リレーション
   interviewSessions InterviewSession[]
 }
 
@@ -43,13 +48,13 @@ model Account {
   userId            String
   type              String
   provider          String
-  providerAccountId String   // Google OAuth では sub クレームの値（旧 User.googleId 相当）
-  refresh_token     String?  @db.Text
-  access_token      String?  @db.Text
+  providerAccountId String // Google OAuth では sub クレームの値
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?  @db.Text
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

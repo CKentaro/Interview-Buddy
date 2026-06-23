@@ -1,17 +1,16 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { Sidebar } from "@/components/layout/Sidebar";
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+/**
+ * 要ログイン領域の共通レイアウト（認証ガード専用）。
+ * シェルの有無は配下の (shell) / (immersive) グループで分ける。
+ * このレイアウト1箇所で (shell)・(immersive) 配下の全ページ（live 含む）を一括保護する。
+ */
+export default async function AppLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
   if (!session) redirect("/login");
 
-  return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar user={session.user} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {children}
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }
