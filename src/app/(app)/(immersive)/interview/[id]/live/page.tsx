@@ -143,6 +143,44 @@ function AIOrb({ state }: { state: "idle" | "speaking" | "thinking" }) {
   );
 }
 
+/* ── Thinking Overlay (shown while the next question's audio is being prepared) ── */
+function ThinkingOverlay() {
+  return (
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 28, textAlign: "center", padding: "0 24px", animation: "fadeUp .4s ease" }}>
+      {/* enlarged thinking orb */}
+      <div style={{ position: "relative", width: 96, height: 96, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {[0, 0.5, 1].map((d, i) => (
+          <span key={i} style={{ position: "absolute", inset: 0, borderRadius: 999, border: "1px solid var(--teal)", animation: `ripple 2.4s ${d}s ease-out infinite` }} />
+        ))}
+        <div style={{ width: 80, height: 80, borderRadius: 999, background: "var(--ink)", display: "flex", alignItems: "center", justifyContent: "center", animation: "thinking 0.9s ease-in-out infinite", boxShadow: "0 0 0 6px color-mix(in oklch, var(--teal) 16%, transparent), 0 8px 24px rgba(11,23,51,0.2)" }}>
+          <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+            <circle cx="12" cy="13" r="2.2" fill="var(--bg)" />
+            <circle cx="20" cy="13" r="2.2" fill="var(--teal)" />
+            <path d="M11 21h10" stroke="var(--bg)" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </div>
+      </div>
+
+      {/* text */}
+      <div>
+        <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3, margin: "0 0 10px", fontFamily: "var(--font-noto-jp), sans-serif" }}>
+          次の質問を準備しています…
+        </h2>
+        <p style={{ fontSize: 13.5, color: "var(--ink-3)", margin: 0, fontFamily: "var(--font-noto-jp), sans-serif", lineHeight: 1.8 }}>
+          AIがあなたの回答を踏まえて考えています。
+        </p>
+      </div>
+
+      {/* animated dots */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[0, 0.2, 0.4].map((d, i) => (
+          <span key={i} style={{ display: "inline-block", width: 6, height: 6, borderRadius: 999, background: "var(--teal)", animation: `bounce 1.2s ${d}s ease-in-out infinite` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Voice Recorder ── */
 function VoiceRecorder({ recording, onToggle }: { recording: boolean; onToggle: () => void }) {
   const [bars, setBars] = useState<number[]>(Array.from({ length: 40 }, () => 0.3));
@@ -417,16 +455,20 @@ export default function LivePage() {
       <main style={{ flex: 1, padding: "32px 40px 24px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative" }}>
         <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "radial-gradient(ellipse 700px 400px at 50% 30%, color-mix(in oklch, var(--teal) 8%, transparent), transparent 70%)" }} />
         <div style={{ position: "relative", width: "100%", maxWidth: 1100 }}>
-          <div key={question.id} style={{ animation: "fadeUp .4s ease", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <AIOrb state={orbState} />
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 999, fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-noto-jp), sans-serif" }}>
-              <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: 999, background: "var(--teal)" }} />
-              <span className="mono" style={{ letterSpacing: 0.5 }}>{question.type}</span>
+          {sending ? (
+            <ThinkingOverlay />
+          ) : (
+            <div key={question.id} style={{ animation: "fadeUp .4s ease", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+              <AIOrb state={orbState} />
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 999, fontSize: 11, color: "var(--ink-3)", fontFamily: "var(--font-noto-jp), sans-serif" }}>
+                <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: 999, background: "var(--teal)" }} />
+                <span className="mono" style={{ letterSpacing: 0.5 }}>{question.type}</span>
+              </div>
+              <h2 style={{ fontSize: "clamp(22px, 2.4vw, 30px)", lineHeight: 1.55, letterSpacing: -0.3, fontWeight: 700, margin: 0, color: "var(--ink)", fontFamily: "var(--font-noto-jp), sans-serif", textAlign: "center", maxWidth: "100%" }}>
+                {question.text}
+              </h2>
             </div>
-            <h2 style={{ fontSize: "clamp(22px, 2.4vw, 30px)", lineHeight: 1.55, letterSpacing: -0.3, fontWeight: 700, margin: 0, color: "var(--ink)", fontFamily: "var(--font-noto-jp), sans-serif", textAlign: "center", maxWidth: "100%" }}>
-              {question.text}
-            </h2>
-          </div>
+          )}
           {error && (
             <div style={{ marginTop: 20, padding: "12px 16px", background: "var(--warn-bg)", border: "1px solid var(--warn-line)", borderRadius: 10, fontSize: 13, color: "var(--warn)", textAlign: "center", fontFamily: "var(--font-noto-jp), sans-serif" }}>
               {error}
@@ -437,7 +479,7 @@ export default function LivePage() {
 
       {/* Answer Dock */}
       <div style={{ background: "var(--bg)", borderTop: "1px solid var(--line)", padding: "20px 40px 28px" }}>
-        <div style={{ maxWidth: 820, margin: "0 auto" }}>
+        <div aria-hidden={sending} style={{ maxWidth: 820, margin: "0 auto", opacity: sending ? 0.45 : 1, pointerEvents: sending ? "none" : "auto", transition: "opacity .3s ease" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <div style={{ display: "inline-flex", padding: 4, background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 999 }}>
               {(["text", "voice"] as const).map((m) => {
