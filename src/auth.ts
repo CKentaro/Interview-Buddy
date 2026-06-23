@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
  * - セッションは DB 戦略（Session テーブルに保存）
  *
  * NOTE: DB セッションは Edge 非対応の pg アダプタを使うため middleware では
- * 参照できない。認証ガードは (app)/layout.tsx の auth()（Node ランタイム）で行う。
+ * 参照できない。認証ガードは (protected)/layout.tsx の auth()（Node ランタイム）で行う。
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
