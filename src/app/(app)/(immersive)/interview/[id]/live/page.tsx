@@ -113,6 +113,33 @@ async function speak(text: string): Promise<void> {
   }
 }
 
+/* ── Speech Recognition (Web Speech API) ── */
+
+type SpeechResultAlt = { transcript: string };
+type SpeechResult = { isFinal: boolean; 0: SpeechResultAlt; length: number };
+type SpeechResultList = { length: number; [i: number]: SpeechResult };
+type SpeechRecognitionEventLike = { resultIndex: number; results: SpeechResultList };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
 /* ── AI Orb ── */
 function AIOrb({ state }: { state: "idle" | "speaking" | "thinking" }) {
   return (
@@ -181,31 +208,6 @@ function ThinkingOverlay() {
   );
 }
 
-/* ── Voice Recorder ── */
-function VoiceRecorder({ recording, onToggle }: { recording: boolean; onToggle: () => void }) {
-  const [bars, setBars] = useState<number[]>(Array.from({ length: 40 }, () => 0.3));
-  useEffect(() => {
-    if (!recording) { setBars(Array.from({ length: 40 }, () => 0.3)); return; }
-    const t = setInterval(() => setBars(Array.from({ length: 40 }, () => 0.25 + Math.random() * 0.75)), 180);
-    return () => clearInterval(t);
-  }, [recording]);
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 28, padding: "24px 28px", background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 16 }}>
-      <button onClick={onToggle} style={{ width: 64, height: 64, borderRadius: 999, background: recording ? "var(--warn)" : "var(--ink)", color: "var(--bg)", display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: recording ? "0 0 0 8px color-mix(in oklch, var(--warn) 18%, transparent)" : "0 6px 18px rgba(11,23,51,0.2)", border: "none", cursor: "pointer", transition: "all .25s ease" }}>
-        {recording ? <IconStop size={18} /> : <IconMic size={22} />}
-      </button>
-      <div style={{ flex: 1, maxWidth: 360, height: 36, display: "flex", alignItems: "center", gap: 2 }}>
-        {bars.map((h, i) => <span key={i} style={{ display: "inline-block", flex: 1, height: `${h * 100}%`, background: recording ? (i % 5 === 0 ? "var(--teal)" : "var(--ink-2)") : "var(--line-strong)", borderRadius: 1, transition: "height .18s ease", minWidth: 2 }} />)}
-      </div>
-      <div style={{ fontSize: 11, color: recording ? "var(--warn)" : "var(--ink-4)", fontFamily: "var(--font-noto-jp), sans-serif", display: "inline-flex", alignItems: "center", gap: 6 }}>
-        {recording && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: 999, background: "var(--warn)", animation: "bounce 0.9s ease-in-out infinite" }} />}
-        {recording ? "録音中" : "停止中"}
-      </div>
-    </div>
-  );
-}
-
 /* ── Abort Modal ── */
 function AbortModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
@@ -242,10 +244,9 @@ export default function LivePage() {
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
 
-  const [mode, setMode] = useState<"text" | "voice">("text");
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
-  const [hasRecorded, setHasRecorded] = useState(false);
+  const [sttSupported, setSttSupported] = useState(true);
   const [orbState, setOrbState] = useState<"idle" | "speaking" | "thinking">("speaking");
   const [sending, setSending] = useState(false);
   const [showAbort, setShowAbort] = useState(false);
@@ -254,6 +255,110 @@ export default function LivePage() {
   const taRef = useRef<HTMLTextAreaElement>(null);
   // Guard against React 18 Strict Mode double-invocation of useEffect in dev
   const initRan = useRef(false);
+
+  // ── Speech-to-text (Web Speech API) ──
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Text committed before/while listening (existing input + finalized results);
+  // interim results are appended on top of this for the live preview.
+  const committedTextRef = useRef("");
+  // Intended listening state — used to auto-restart when the browser ends
+  // recognition on its own (e.g. Chrome stops after a silence pause).
+  const listeningRef = useRef(false);
+  // While the user manually edits the box mid-dictation, ignore incoming
+  // results (the in-flight phrase) until the recognition session is restarted.
+  const suppressResultRef = useRef(false);
+  const resyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setSttSupported(getSpeechRecognitionCtor() !== null);
+    return () => {
+      listeningRef.current = false;
+      if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  const stopRecognition = () => {
+    listeningRef.current = false;
+    suppressResultRef.current = false;
+    if (resyncTimerRef.current) { clearTimeout(resyncTimerRef.current); resyncTimerRef.current = null; }
+    recognitionRef.current?.stop();
+    setRecording(false);
+  };
+
+  // The user edited the textarea by hand while dictating. Re-base the
+  // committed text on their edit and discard the engine's in-flight phrase so
+  // it can't be re-inserted; then restart recognition so continued speech is
+  // appended cleanly after the edit.
+  const handleManualEdit = (value: string) => {
+    setText(value);
+    if (!recording) return;
+    committedTextRef.current = value;
+    suppressResultRef.current = true;
+    if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+    resyncTimerRef.current = setTimeout(() => {
+      resyncTimerRef.current = null;
+      suppressResultRef.current = false;
+      // abort() drops the pending phrase without emitting a final result;
+      // onend then auto-restarts a fresh session (listeningRef stays true).
+      if (listeningRef.current) recognitionRef.current?.abort();
+    }, 350);
+  };
+
+  const startRecognition = () => {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) { setSttSupported(false); return; }
+
+    const rec = new Ctor();
+    rec.lang = "ja-JP";
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    // Start appending after whatever is already in the box.
+    committedTextRef.current = text ? text.replace(/\s+$/, "") + " " : "";
+
+    rec.onresult = (e) => {
+      // Ignore results while the user is manually editing — the in-flight
+      // phrase would otherwise re-insert text they just deleted.
+      if (suppressResultRef.current) return;
+      let interim = "";
+      let final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (!r) continue;
+        if (r.isFinal) final += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      if (final) committedTextRef.current += final;
+      setText(committedTextRef.current + interim);
+    };
+    rec.onerror = (ev) => {
+      if (ev.error !== "no-speech" && ev.error !== "aborted") {
+        listeningRef.current = false;
+        setRecording(false);
+      }
+    };
+    rec.onend = () => {
+      // Browser may end recognition on its own; restart if still intended.
+      if (listeningRef.current) {
+        try { rec.start(); } catch { listeningRef.current = false; setRecording(false); }
+      } else {
+        setRecording(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+    listeningRef.current = true;
+    try {
+      rec.start();
+      setRecording(true);
+    } catch {
+      listeningRef.current = false;
+      setRecording(false);
+    }
+  };
+
+  const toggleRecording = () => { recording ? stopRecognition() : startRecognition(); };
 
   // Load from sessionStorage, pre-fetch TTS if voice is enabled
   useEffect(() => {
@@ -296,18 +401,19 @@ export default function LivePage() {
       taRef.current.style.height = "auto";
       taRef.current.style.height = Math.min(taRef.current.scrollHeight, 200) + "px";
     }
-  }, [text, mode]);
+  }, [text]);
 
-  const canSend = mode === "text" ? text.trim().length > 0 : hasRecorded && !recording;
+  const canSend = text.trim().length > 0;
 
   const handleSend = async () => {
     if (sending || !question) return;
+    // Stop any in-progress dictation before sending.
+    if (recording) stopRecognition();
     setSending(true);
     setOrbState("thinking");
     setError("");
 
-    // For voice mode, use the text placeholder since we don't have real STT yet
-    const answerText = mode === "text" ? text.trim() : "（音声回答）";
+    const answerText = text.trim();
 
     try {
       const res = await fetch(`/api/sessions/${sessionId}/answers`, {
@@ -338,8 +444,6 @@ export default function LivePage() {
         setQuestion(next);
         setQuestionNumber((n) => n + 1);
         setText("");
-        setRecording(false);
-        setHasRecorded(false);
         setOrbState("speaking");
         setSending(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -351,8 +455,6 @@ export default function LivePage() {
         setQuestion(next);
         setQuestionNumber((n) => n + 1);
         setText("");
-        setRecording(false);
-        setHasRecorded(false);
         setOrbState("speaking");
         setSending(false);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -480,45 +582,31 @@ export default function LivePage() {
       {/* Answer Dock */}
       <div style={{ background: "var(--bg)", borderTop: "1px solid var(--line)", padding: "20px 40px 28px" }}>
         <div aria-hidden={sending} style={{ maxWidth: 820, margin: "0 auto", opacity: sending ? 0.45 : 1, pointerEvents: sending ? "none" : "auto", transition: "opacity .3s ease" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ display: "inline-flex", padding: 4, background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 999 }}>
-              {(["text", "voice"] as const).map((m) => {
-                const on = mode === m;
-                return (
-                  <button key={m} onClick={() => setMode(m)} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", background: on ? "var(--ink)" : "transparent", color: on ? "var(--bg)" : "var(--ink-3)", borderRadius: 999, fontSize: 12.5, fontWeight: 600, fontFamily: "var(--font-noto-jp), sans-serif", border: "none", cursor: "pointer", transition: "all .15s ease" }}>
-                    {m === "text" ? "テキスト" : "音声"}
-                  </button>
-                );
-              })}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: "var(--ink-3)", fontFamily: "var(--font-noto-jp), sans-serif" }}>
-              {mode === "text" ? "回答は要点を絞って、自分の言葉で。" : "深呼吸してから、ご自身のペースで話してください。"}
+              {recording ? "話した内容がそのまま入力されます。" : "入力するか、マイクで話して回答できます。"}
             </div>
           </div>
 
-          {mode === "text" ? (
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 12, padding: "12px 14px 12px 18px", background: "var(--bg-card)", border: "1px solid var(--line)", borderRadius: 16, boxShadow: "0 1px 2px rgba(11,23,51,0.04)" }}>
-              <textarea
-                ref={taRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="ここに回答を入力してください…"
-                rows={2}
-                style={{ flex: 1, resize: "none", border: "none", background: "transparent", fontSize: 15, lineHeight: 1.8, color: "var(--ink)", fontFamily: "var(--font-noto-jp), sans-serif", minHeight: 56, maxHeight: 200, padding: "4px 0", outline: "none" }}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (canSend && !sending) handleSend(); } }}
-              />
-              <SendBtn canSend={canSend} sending={sending} onClick={handleSend} />
-            </div>
-          ) : (
-            <div>
-              <VoiceRecorder recording={recording} onToggle={() => { setRecording((r) => { if (r) setHasRecorded(true); return !r; }); }} />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-                <SendBtn canSend={canSend} sending={sending} onClick={handleSend} />
-              </div>
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 10, padding: "12px 12px 12px 18px", background: "var(--bg-card)", border: `1px solid ${recording ? "color-mix(in oklch, var(--warn) 45%, var(--line))" : "var(--line)"}`, borderRadius: 16, boxShadow: "0 1px 2px rgba(11,23,51,0.04)", transition: "border-color .2s ease" }}>
+            <textarea
+              ref={taRef}
+              value={text}
+              onChange={(e) => handleManualEdit(e.target.value)}
+              placeholder={recording ? "聞き取っています…" : "ここに回答を入力、またはマイクで話してください…"}
+              rows={2}
+              style={{ flex: 1, resize: "none", border: "none", background: "transparent", fontSize: 15, lineHeight: 1.8, color: "var(--ink)", fontFamily: "var(--font-noto-jp), sans-serif", minHeight: 56, maxHeight: 200, padding: "4px 0", outline: "none" }}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (canSend && !sending) handleSend(); } }}
+            />
+            <MicBtn recording={recording} disabled={!sttSupported} onClick={toggleRecording} />
+            <SendBtn canSend={canSend} sending={sending} onClick={handleSend} />
+          </div>
           <div style={{ marginTop: 12, fontSize: 11, color: "var(--ink-4)", fontFamily: "var(--font-noto-jp), sans-serif" }}>
-            {mode === "text" ? "⌘ + Enter で送信" : "マイク権限が必要です"}
+            {!sttSupported
+              ? "このブラウザは音声入力に対応していません。テキストで入力してください。"
+              : recording
+                ? "● 録音中 — もう一度マイクを押すと停止します"
+                : "⌘ + Enter で送信"}
           </div>
         </div>
       </div>
@@ -530,6 +618,32 @@ export default function LivePage() {
         />
       )}
     </div>
+  );
+}
+
+function MicBtn({ recording, disabled, onClick }: { recording: boolean; disabled: boolean; onClick: () => void }) {
+  const title = disabled ? "音声入力に対応していません" : recording ? "停止" : "マイクで入力";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      aria-pressed={recording}
+      style={{
+        flexShrink: 0, width: 44, height: 44, borderRadius: 999,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        background: recording ? "var(--warn)" : "transparent",
+        color: recording ? "white" : disabled ? "var(--ink-4)" : "var(--ink-2)",
+        border: `1px solid ${recording ? "var(--warn)" : "var(--line-strong)"}`,
+        cursor: disabled ? "not-allowed" : "pointer",
+        boxShadow: recording ? "0 0 0 5px color-mix(in oklch, var(--warn) 18%, transparent)" : "none",
+        transition: "all .2s ease",
+      }}
+    >
+      {recording ? <IconStop size={16} /> : <IconMic size={20} />}
+    </button>
   );
 }
 
