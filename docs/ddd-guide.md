@@ -55,16 +55,15 @@ src/
 │   ├── prisma/                 # Prisma（DBアクセスツール）を使ったリポジトリ実装
 │   │   ├── PrismaInterviewSessionRepository.ts
 │   │   └── PrismaFeedbackRepository.ts
-│   └── ai/                     # AI（Gemini）を使ったサービス実装
-│       └── GeminiFeedbackService.ts
+│   ├── ai/                     # AI（Gemini）を使ったサービス実装
+│   │   └── GeminiFeedbackService.ts
+│   └── questionBank/           # 質問バンク（静的リソース）とその型・読み込み実装
+│       ├── questionBank.json   # 質問バンクのデータ
+│       └── questionBank.ts     # questionBank.json の生データ形状の型
 ├── lib/                        # 共通ユーティリティ：各層から使う共通の道具
 │   ├── prisma.ts               # Prismaクライアントの初期化
 │   └── auth-guard.ts           # 認証ガード（requireUser など）
 ├── auth.ts                     # 認証（Auth.js / NextAuth v5）の設定。v5慣習に従いsrc直下に置く
-├── types/                      # ドメイン/APIに属さない共有型（例: データファイルの形状）
-│   └── questionBank.ts         # questionBank.json（data/）の型定義
-├── data/                       # 静的データの置き場
-│   └── questionBank.json       # 質問バンクのデータ
 ├── test/                       # テストのグローバル設定（テスト本体は実装と同階層にコロケーション）
 │   └── setup.ts                # Vitestのセットアップ（vitest.config.ts から読み込む）
 └── generated/                  # 自動生成ファイル（編集禁止）
