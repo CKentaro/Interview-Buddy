@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,37 +7,15 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── Enum ──────────────────────────────────────────────────────────────────────
-
-// 評価軸（4軸）
-enum EvaluationAxis {
-  REPRODUCIBILITY // 再現性
-  VALUES_JUDGMENT // 価値観 / 判断
-  SELF_AWARENESS // 自己認識
-  WORLDVIEW // 世界観 / 知的好奇心
-}
-
-// 質問種別
-enum QuestionType {
-  MAIN // 本質問
-  FOLLOW_UP // 深掘り質問
-}
-
-// ── Auth.js (next-auth v5) が必要とするテーブル ──────────────────────────────
-
 model User {
-  id            String    @id @default(cuid())
-  name          String? // Auth.js は optional を要求
-  email         String    @unique
-  emailVerified DateTime? // Auth.js: メール確認日時
-  image         String? // Auth.js: プロフィール画像 URL
-
-  // Auth.js リレーション
-  accounts Account[]
-  sessions Session[]
-
-  // アプリ固有リレーション
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
   interviewSessions InterviewSession[]
+  sessions          Session[]
 }
 
 model Account {
@@ -48,16 +23,15 @@ model Account {
   userId            String
   type              String
   provider          String
-  providerAccountId String // Google OAuth では sub クレームの値
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -78,8 +52,6 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// ── アプリ固有モデル ───────────────────────────────────────────────────────────
-
 model InterviewSession {
   id              String     @id @default(cuid())
   startedAt       DateTime   @default(now())
@@ -90,12 +62,11 @@ model InterviewSession {
   jobMajor        String?
   jobMinor        String?
   selectionStage  String?
-  difficulty      String?
   interviewerType String?
   userId          String
+  feedback        Feedback?
   user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
-  feedback        Feedback?
 }
 
 model Question {
@@ -106,11 +77,11 @@ model Question {
   depthCount        Int              @default(0)
   primaryAxis       EvaluationAxis?
   sessionId         String
-  session           InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   parentQuestionId  String?
+  answer            Answer?
   parentQuestion    Question?        @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: Cascade)
   followUpQuestions Question[]       @relation("QuestionFollowUps")
-  answer            Answer?
+  session           InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model Answer {
@@ -124,8 +95,8 @@ model Feedback {
   id              String           @id @default(cuid())
   overallComment  String
   sessionId       String           @unique
-  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   axisEvaluations AxisEvaluation[]
+  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model AxisEvaluation {
@@ -134,4 +105,16 @@ model AxisEvaluation {
   comment    String
   feedbackId String
   feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+}
+
+enum EvaluationAxis {
+  REPRODUCIBILITY
+  VALUES_JUDGMENT
+  SELF_AWARENESS
+  WORLDVIEW
+}
+
+enum QuestionType {
+  MAIN
+  FOLLOW_UP
 }
