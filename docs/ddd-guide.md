@@ -18,8 +18,13 @@ src/
 │   │   ├── auth/               # 認証関連のAPI
 │   │   ├── sessions/           # 面接セッション関連のAPI
 │   │   ├── feedback/           # フィードバック関連のAPI
-│   │   └── users/              # ユーザー関連のAPI
+│   │   ├── users/              # ユーザー関連のAPI
+│   │   └── types.ts            # APIのリクエスト/レスポンス型（DTO）の集約定義
 │   └── (画面ページ)            # ユーザーが見る画面（ページコンポーネント）
+├── components/                 # プレゼンテーション層：画面をまたいで使うReactコンポーネント
+│   ├── auth/                   # 認証まわりのUI（例: SignOutButton）
+│   ├── providers/              # Context Provider など（例: SessionProviderWrapper）
+│   └── ui/                     # 汎用UIパーツ
 ├── domain/                     # ドメイン層：ビジネスの中心的なルールとデータ構造
 │   ├── interview/              # 「面接」に関するドメイン（コンテキスト内を役割で分ける）
 │   │   ├── model/             # エンティティ・値オブジェクト・enum
@@ -54,7 +59,14 @@ src/
 │       └── GeminiFeedbackService.ts
 ├── lib/                        # 共通ユーティリティ：各層から使う共通の道具
 │   ├── prisma.ts               # Prismaクライアントの初期化
-│   └── auth.ts                 # 認証（Auth.js）の設定
+│   └── auth-guard.ts           # 認証ガード（requireUser など）
+├── auth.ts                     # 認証（Auth.js / NextAuth v5）の設定。v5慣習に従いsrc直下に置く
+├── types/                      # ドメイン/APIに属さない共有型（例: データファイルの形状）
+│   └── questionBank.ts         # questionBank.json（data/）の型定義
+├── data/                       # 静的データの置き場
+│   └── questionBank.json       # 質問バンクのデータ
+├── test/                       # テストのグローバル設定（テスト本体は実装と同階層にコロケーション）
+│   └── setup.ts                # Vitestのセットアップ（vitest.config.ts から読み込む）
 └── generated/                  # 自動生成ファイル（編集禁止）
     └── prisma/                 # Prismaが自動生成する型・クライアント
 ```
@@ -132,7 +144,7 @@ TypeScript の型の扱い方を統一します。型は「データの形を保
 - `any` は原則禁止。やむを得ない場合は `unknown`（型が不明であることを明示する型）を使い、型ガードで絞り込む。
 - Prismaの生成型（`generated/prisma/`）をドメイン層にimportしない（ドメイン層を技術的な詳細から守るため）。
 - ドメイン層のエンティティは独自のクラスまたはinterfaceで定義する。
-- APIのリクエスト/レスポンス型は `app/api/` 内で定義する。
+- APIのリクエスト/レスポンス型（DTO）は `app/api/types.ts` に集約する（プレゼンテーション層の関心ごとなので `app/api/` 内に置く）。
 - enumはTypeScriptの `const enum` ではなく通常の `enum` を使用する（Prismaとの互換性のため）。
 - 非同期処理は必ず `Promise` を明示する（戻り値の型に `Promise<...>` を書く）。
 
