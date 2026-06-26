@@ -1,7 +1,7 @@
 ## Interview Buddy 開発標準ガイド（DDDベース）
 
-> **更新日**: 2026-06-17
-> **ドキュメントバージョン**: v1.0.0
+> **更新日**: 2026-06-26
+> **ドキュメントバージョン**: v1.1.0（ドメイン層を model/services/ports のサブフォルダ構成に変更）
 
 このドキュメントは、Interview Buddy プロジェクトの開発標準をチーム全員で統一するためのガイドです。DDD（ドメイン駆動設計：ビジネスの関心ごとを中心にソフトウェアを設計する考え方）をベースに、ディレクトリ構成・命名規則・実装ルールをまとめています。Web開発が初めてのメンバーでも迷わず実装できることを目指しています。
 
@@ -21,15 +21,24 @@ src/
 │   │   └── users/              # ユーザー関連のAPI
 │   └── (画面ページ)            # ユーザーが見る画面（ページコンポーネント）
 ├── domain/                     # ドメイン層：ビジネスの中心的なルールとデータ構造
-│   ├── interview/              # 「面接」に関するドメイン
-│   │   ├── InterviewSession.ts # 面接セッションのエンティティ（中心となるデータと振る舞い）
-│   │   ├── Question.ts         # 質問のエンティティ
-│   │   ├── Answer.ts           # 回答のエンティティ
-│   │   └── IInterviewSessionRepository.ts # セッション永続化のインターフェース（契約のみ）
-│   └── feedback/               # 「フィードバック」に関するドメイン
-│       ├── Feedback.ts         # フィードバックのエンティティ
-│       ├── AxisEvaluation.ts   # 評価軸ごとの評価エンティティ
-│       └── IFeedbackRepository.ts # フィードバック永続化のインターフェース（契約のみ）
+│   ├── interview/              # 「面接」に関するドメイン（コンテキスト内を役割で分ける）
+│   │   ├── model/             # エンティティ・値オブジェクト・enum
+│   │   │   ├── InterviewSession.ts # 面接セッションのエンティティ（中心となるデータと振る舞い）
+│   │   │   ├── Question.ts    # 質問のエンティティ
+│   │   │   ├── Answer.ts      # 回答のエンティティ
+│   │   │   └── EvaluationAxis.ts # 評価軸（ドメイン独自 enum）
+│   │   ├── services/         # ドメインサービス（純粋なビジネスロジック）
+│   │   │   ├── decideNextStep.ts     # 回答後の分岐判定（+ .test.ts）
+│   │   │   └── selectMainQuestions.ts # 本質問5問の抽選（+ .test.ts）
+│   │   └── ports/            # 契約（インターフェース。実装はインフラ層）
+│   │       ├── IInterviewSessionRepository.ts # セッション永続化の契約
+│   │       └── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
+│   └── feedback/               # 「フィードバック」に関するドメイン（同じく model/services/ports）
+│       ├── model/
+│       │   ├── Feedback.ts    # フィードバックのエンティティ
+│       │   └── AxisEvaluation.ts # 評価軸ごとの評価エンティティ
+│       └── ports/
+│           └── IFeedbackRepository.ts # フィードバック永続化の契約
 ├── application/                # アプリケーション層：ユースケース（やりたいこと）を組み立てる
 │   ├── interview/              # 面接に関するユースケース
 │   │   ├── StartInterviewUseCase.ts        # 面接を開始する
@@ -83,7 +92,11 @@ Interview Buddy は「プレゼンテーション層」「アプリケーショ�
 - **何をする層か**: ビジネスの中心となるルールとデータ構造（エンティティ）を表す層です。Interview Buddy の「面接とは何か」「フィードバックとは何か」という本質を表現します。
 - **依存してよいもの**: 同じドメイン層の中だけ。原則として他のどの層・ライブラリにも依存しない。
 - **依存してはいけないもの**: Prisma・Gemini・Next.js を import してはいけない（最重要ルール）。
-- **具体例**: [src/domain/interview/InterviewSession.ts](src/domain/interview/InterviewSession.ts)、[src/domain/interview/IInterviewSessionRepository.ts](src/domain/interview/IInterviewSessionRepository.ts)。
+- **コンテキスト内の分け方**: 各ドメイン（`interview/` 等）の中は、役割で 3 つのサブフォルダに分けます。
+  - `model/`: エンティティ・値オブジェクト・enum（そのドメインの「データの形」）。
+  - `services/`: ドメインサービス（複数のエンティティにまたがる純粋なビジネスロジック。例: `decideNextStep`）。
+  - `ports/`: 契約（`I〜` インターフェース）。実装はインフラ層に置く（依存性逆転）。
+- **具体例**: [src/domain/interview/model/Question.ts](src/domain/interview/model/Question.ts)、[src/domain/interview/services/decideNextStep.ts](src/domain/interview/services/decideNextStep.ts)、[src/domain/interview/ports/IInterviewSessionRepository.ts](src/domain/interview/ports/IInterviewSessionRepository.ts)。
 
 ### インフラ層（`infrastructure/`）
 
@@ -100,12 +113,14 @@ Interview Buddy は「プレゼンテーション層」「アプリケーショ�
 
 | 種類 | 命名パターン | 例 |
 |------|------------|-----|
-| エンティティ | PascalCase | InterviewSession, Question |
+| エンティティ・値オブジェクト | PascalCase | InterviewSession, Question, SelectedQuestion |
+| ドメインサービス | camelCase（関数名と一致） | decideNextStep, selectMainQuestions |
 | リポジトリIF（インターフェース） | I + PascalCase + Repository | IInterviewSessionRepository |
+| ポートIF（リポジトリ以外の契約） | I + PascalCase + Service / Provider | IFollowUpQuestionService, IQuestionBankProvider |
 | リポジトリ実装 | Prisma + PascalCase + Repository | PrismaInterviewSessionRepository |
 | ユースケース | PascalCase + UseCase | StartInterviewUseCase |
 | Route Handler | route.ts（Next.js規約） | app/api/sessions/route.ts |
-| AIサービス | PascalCase + Service | GeminiFeedbackService |
+| AIサービス実装 | （技術名）+ PascalCase + Service | GeminiFollowUpQuestionService |
 | enumの値 | SCREAMING_SNAKE_CASE | SessionStatus.IN_PROGRESS |
 
 ---
