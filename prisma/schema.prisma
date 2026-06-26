@@ -90,7 +90,6 @@ model InterviewSession {
   jobMajor        String?
   jobMinor        String?
   selectionStage  String?
-  difficulty      String?
   interviewerType String?
   userId          String
   user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
