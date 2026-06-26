@@ -1,0 +1,123 @@
+import type { EvaluationAxis, QuestionType } from "@/generated/prisma/enums";
+
+// ─── Session list ────────────────────────────────────────────
+export type SessionListItemResponse = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  questionCount: number;
+  hasFeedback: boolean;
+};
+
+export type SessionListResponse = {
+  sessions: SessionListItemResponse[];
+};
+
+// ─── Session detail ───────────────────────────────────────────
+export type QuestionWithAnswer = {
+  id: string;
+  type: QuestionType;
+  content: string;
+  displayOrder: number;
+  primaryAxis: EvaluationAxis | null;
+  parentQuestionId: string | null;
+  answer: { id: string; content: string } | null;
+};
+
+export type SessionDetailResponse = {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  questions: QuestionWithAnswer[];
+};
+
+// ─── User me ─────────────────────────────────────────────────
+export type UserMeResponse = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  totalSessions: number;
+  lastSessionAt: string | null;
+};
+
+// ─── Session create ───────────────────────────────────────────
+export type CreateSessionRequest = {
+  jobTitle?: string;
+  companyName?: string;
+  industryMajor?: string;
+  industryMinor?: string;
+  jobMinor?: string;
+  selectionStage?: string;
+  interviewerType?: string;
+  voiceEnabled?: boolean;
+};
+
+export type QuestionResponse = {
+  id: string;
+  type: QuestionType;
+  text: string; //画面表示用の質問文
+  speechText?: string; //読み上げ用文章
+  parentQuestionId: string | null;
+};
+
+export type SessionResponse = {
+  sessionId: string;
+  createdAt: string;
+  firstQuestion: QuestionResponse;
+};
+
+// UC03: 回答送信 & 深掘り質問生成
+
+export type SubmitAnswerRequest = {
+  questionId: string;
+  answerText: string;
+  voiceEnabled?: boolean;
+};
+
+export type NextQuestionResponse = {
+  id: string;
+  type: QuestionType;
+  text: string;
+  parentQuestionId: string | null;
+  speechText?: string;
+};
+
+// 継続なら必ず次の質問があり、終了なら必ず null。
+// 矛盾した組み合わせ（終了なのに次の質問がある等）を型で表現できないようにする。
+export type AnswerResponse =
+  | { answerId: string; isSessionComplete: false; nextQuestion: NextQuestionResponse }
+  | { answerId: string; isSessionComplete: true; nextQuestion: null };
+
+// UC06: フィードバック取得
+
+export type AxisEvaluationResult = {
+  axis: EvaluationAxis;
+  // 表示用の日本語ラベル。enum をキーにしたラベルマップから引く想定。
+  axisLabel: string;
+  comment: string;
+};
+
+export type FeedbackResponse =
+  | { status: "generating" }
+  | { status: "failed" }
+  | {
+      status: "completed";
+      feedbackId: string;
+      overallComment: string;
+      axisEvaluations: AxisEvaluationResult[];
+    };
