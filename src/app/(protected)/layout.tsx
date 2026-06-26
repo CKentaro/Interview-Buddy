@@ -9,7 +9,7 @@ import { auth } from "@/auth";
  * このレイアウト1箇所で (shell)・(immersive) 配下の全ページ（live 含む）を
  * 一括保護できる。DB セッション戦略のため Node ランタイムで実行される。
  */
-export default async function AppLayout({
+export default async function ProtectedLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
