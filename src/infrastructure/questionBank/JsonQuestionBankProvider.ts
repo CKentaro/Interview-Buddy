@@ -7,20 +7,15 @@ import type {
 import type { RawBankAxis, RawQuestionBank } from "./questionBank";
 import bankJson from "./questionBank.json";
 
-/** JSON 上の評価軸文字列 → ドメインの EvaluationAxis。 */
-const AXIS_TO_DOMAIN: Record<string, EvaluationAxis> = {
-  REPRODUCIBILITY: EvaluationAxis.REPRODUCIBILITY,
-  VALUES_JUDGMENT: EvaluationAxis.VALUES_JUDGMENT,
-  SELF_AWARENESS: EvaluationAxis.SELF_AWARENESS,
-  WORLDVIEW: EvaluationAxis.WORLDVIEW,
-};
+/** EvaluationAxis の妥当な値集合（JSON 文字列の検証に使う）。 */
+const DOMAIN_AXES = new Set<string>(Object.values(EvaluationAxis));
 
 function toDomainAxis(raw: RawBankAxis): BankAxis {
-  const axis = AXIS_TO_DOMAIN[raw.axis];
-  if (axis === undefined) {
+  if (!DOMAIN_AXES.has(raw.axis)) {
     throw new Error(`Unknown evaluation axis in question bank: ${raw.axis}`);
   }
-  return { axis, questions: raw.questions };
+  // 値は EvaluationAxis のメンバーであることを上で検証済み。
+  return { axis: raw.axis as EvaluationAxis, questions: raw.questions };
 }
 
 /**
