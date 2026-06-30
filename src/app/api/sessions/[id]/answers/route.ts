@@ -9,7 +9,7 @@ import {
 import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
 import { GeminiFollowUpQuestionService } from "@/infrastructure/ai/GeminiFollowUpQuestionService";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
-import type { AnswerResponse, SubmitAnswerRequest } from "@/types/api";
+import type { AnswerResponse, SubmitAnswerRequest } from "@/app/api/types";
 
 /** ドメインのユースケース結果を API レスポンス型へ詰め替える。 */
 function toAnswerResponse(result: AnswerQuestionResult): AnswerResponse {
