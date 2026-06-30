@@ -31,19 +31,25 @@ src/
 │   │   │   ├── InterviewSession.ts # 面接セッションのエンティティ（中心となるデータと振る舞い）
 │   │   │   ├── Question.ts    # 質問のエンティティ
 │   │   │   ├── Answer.ts      # 回答のエンティティ
+│   │   │   ├── SelectedQuestion.ts # 抽選された本質問の値オブジェクト
+│   │   │   ├── QuestionBank.ts # 質問バンク（出題元の参照データ）のドメイン型
+│   │   │   ├── NextStepDecision.ts # 回答後の分岐判定結果（値オブジェクト）
+│   │   │   ├── QuestionType.ts # 質問種別（MAIN / FOLLOW_UP）の enum
 │   │   │   └── EvaluationAxis.ts # 評価軸（ドメイン独自 enum）
 │   │   ├── services/         # ドメインサービス（純粋なビジネスロジック）
 │   │   │   ├── decideNextStep.ts     # 回答後の分岐判定（+ .test.ts）
 │   │   │   └── selectMainQuestions.ts # 本質問5問の抽選（+ .test.ts）
 │   │   └── ports/            # 契約（インターフェース。実装はインフラ層）
 │   │       ├── IInterviewSessionRepository.ts # セッション永続化の契約
-│   │       └── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
+│   │       ├── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
+│   │       └── IQuestionBankProvider.ts       # 質問バンク読込の契約
 │   └── feedback/               # 「フィードバック」に関するドメイン（同じく model/services/ports）
 │       ├── model/
 │       │   ├── Feedback.ts    # フィードバックのエンティティ
 │       │   └── AxisEvaluation.ts # 評価軸ごとの評価エンティティ
 │       └── ports/
-│           └── IFeedbackRepository.ts # フィードバック永続化の契約
+│           ├── IFeedbackRepository.ts # フィードバック永続化の契約
+│           └── IFeedbackService.ts    # フィードバック（AI評価）生成の契約
 ├── application/                # アプリケーション層：ユースケース（やりたいこと）を組み立てる
 │   ├── interview/              # 面接に関するユースケース
 │   │   ├── StartInterviewUseCase.ts        # 面接を開始する
@@ -56,10 +62,12 @@ src/
 │   │   ├── PrismaInterviewSessionRepository.ts
 │   │   └── PrismaFeedbackRepository.ts
 │   ├── ai/                     # AI（Gemini）を使ったサービス実装
-│   │   └── GeminiFeedbackService.ts
+│   │   ├── GeminiFollowUpQuestionService.ts # 深掘り質問生成の Gemini 実装（骨格）
+│   │   └── GeminiFeedbackService.ts         # フィードバック生成の Gemini 実装（骨格）
 │   └── questionBank/           # 質問バンク（静的リソース）とその型・読み込み実装
 │       ├── questionBank.json   # 質問バンクのデータ
-│       └── questionBank.ts     # questionBank.json の生データ形状の型
+│       ├── questionBank.ts     # questionBank.json の生データ形状の型
+│       └── JsonQuestionBankProvider.ts # IQuestionBankProvider の JSON 実装
 ├── lib/                        # 共通ユーティリティ：各層から使う共通の道具
 │   ├── prisma.ts               # Prismaクライアントの初期化
 │   └── auth-guard.ts           # 認証ガード（requireUser など）
