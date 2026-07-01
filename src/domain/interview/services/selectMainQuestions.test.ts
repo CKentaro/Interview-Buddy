@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EvaluationAxis } from "../model/EvaluationAxis";
-import type { BankAxis, QuestionBank } from "../model/QuestionBank";
+import { EvaluationAxis } from "../model/EvaluationAxis.vo";
+import type { BankAxis, QuestionBank } from "../model/QuestionBank.vo";
 import {
   InsufficientQuestionBankError,
   selectMainQuestions,

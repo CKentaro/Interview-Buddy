@@ -1,4 +1,4 @@
-import type { EvaluationAxis } from "./EvaluationAxis";
+import type { EvaluationAxis } from "./EvaluationAxis.vo";
 
 /** 質問バンク内の 1 問。永続化前の出題候補を表す。 */
 export type BankQuestion = {

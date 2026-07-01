@@ -1,5 +1,5 @@
-import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis";
-import type { Feedback } from "../model/Feedback";
+import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import type { Feedback } from "../model/Feedback.entity";
 
 /** 保存する 1 軸分の評価（永続化前なので id を持たない）。 */
 export type NewAxisEvaluation = {

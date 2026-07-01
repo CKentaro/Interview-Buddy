@@ -1,6 +1,6 @@
-import type { Answer } from "../model/Answer";
-import type { EvaluationAxis } from "../model/EvaluationAxis";
-import type { Question } from "../model/Question";
+import type { Answer } from "../model/Answer.entity";
+import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
+import type { Question } from "../model/Question.entity";
 
 /** 深掘り質問を新規作成するための入力。 */
 export type CreateFollowUpQuestionInput = {

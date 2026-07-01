@@ -1,5 +1,5 @@
-import type { NextStepDecision } from "../model/NextStepDecision";
-import type { Question } from "../model/Question";
+import type { NextStepDecision } from "../model/NextStepDecision.vo";
+import type { Question } from "../model/Question.entity";
 
 /**
  * 1 つの MainQuestion に対して許す深掘り（FollowUpQuestion）の最大回数。

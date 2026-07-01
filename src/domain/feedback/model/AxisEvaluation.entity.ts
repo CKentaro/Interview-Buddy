@@ -1,4 +1,4 @@
-import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis";
+import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 
 /**
  * 評価軸ごとの評価エンティティ（ユビキタス言語: AxisEvaluation）。

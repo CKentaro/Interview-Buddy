@@ -1,6 +1,6 @@
-import type { BankQuestion, QuestionBank } from "../model/QuestionBank";
-import type { EvaluationAxis } from "../model/EvaluationAxis";
-import type { SelectedQuestion } from "../model/SelectedQuestion";
+import type { BankQuestion, QuestionBank } from "../model/QuestionBank.vo";
+import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
+import type { SelectedQuestion } from "../model/SelectedQuestion.vo";
 
 /** セッションごとに出題する本質問（MainQuestion）の数。 */
 export const MAIN_QUESTION_COUNT = 5;

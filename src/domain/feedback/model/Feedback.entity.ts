@@ -1,4 +1,4 @@
-import type { AxisEvaluation } from "./AxisEvaluation";
+import type { AxisEvaluation } from "./AxisEvaluation.entity";
 
 /**
  * フィードバックのエンティティ（ユビキタス言語: Feedback）。

@@ -1,4 +1,4 @@
-import type { BankQuestion } from "@/domain/interview/model/QuestionBank";
+import type { BankQuestion } from "@/domain/interview/model/QuestionBank.vo";
 
 /**
  * questionBank.json の生データ形状の型。

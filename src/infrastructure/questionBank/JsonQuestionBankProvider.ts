@@ -1,9 +1,9 @@
-import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis";
+import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { IQuestionBankProvider } from "@/domain/interview/ports/IQuestionBankProvider";
 import type {
   BankAxis,
   QuestionBank,
-} from "@/domain/interview/model/QuestionBank";
+} from "@/domain/interview/model/QuestionBank.vo";
 import type { RawBankAxis, RawQuestionBank } from "./questionBank";
 import bankJson from "./questionBank.json";
 

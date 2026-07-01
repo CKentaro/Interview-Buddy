@@ -1,4 +1,4 @@
-import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis";
+import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 
 /** 評価対象となる 1 問分の質問と回答の組。 */
 export type FeedbackQAPair = {

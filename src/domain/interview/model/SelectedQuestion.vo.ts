@@ -1,4 +1,4 @@
-import type { EvaluationAxis } from "./EvaluationAxis";
+import type { EvaluationAxis } from "./EvaluationAxis.vo";
 
 /**
  * 抽選された本質問（MainQuestion）の値オブジェクト。

@@ -1,4 +1,4 @@
-import type { Feedback } from "@/domain/feedback/model/Feedback";
+import type { Feedback } from "@/domain/feedback/model/Feedback.entity";
 import type {
   IFeedbackRepository,
   NewFeedback,

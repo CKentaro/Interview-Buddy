@@ -1,4 +1,4 @@
-import type { QuestionBank } from "../model/QuestionBank";
+import type { QuestionBank } from "../model/QuestionBank.vo";
 
 /**
  * 質問バンクの取得に対する契約（ポート）。

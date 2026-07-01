@@ -1,4 +1,4 @@
-import type { Question } from "./Question";
+import type { Question } from "./Question.entity";
 
 /**
  * 面接セッションのエンティティ（ユビキタス言語: InterviewSession）。

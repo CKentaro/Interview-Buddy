@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { decideNextStep, MAX_FOLLOW_UP_DEPTH } from "./decideNextStep";
-import { EvaluationAxis } from "../model/EvaluationAxis";
-import type { Question } from "../model/Question";
-import { QuestionType } from "../model/QuestionType";
+import { EvaluationAxis } from "../model/EvaluationAxis.vo";
+import type { Question } from "../model/Question.entity";
+import { QuestionType } from "../model/QuestionType.vo";
 
 const nextMain: Question = {
   id: "q-main-2",

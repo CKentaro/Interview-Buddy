@@ -1,4 +1,4 @@
-import type { Question } from "./Question";
+import type { Question } from "./Question.entity";
 
 /**
  * 回答後に「次に何をするか」を表すドメインの判定結果（値オブジェクト）。

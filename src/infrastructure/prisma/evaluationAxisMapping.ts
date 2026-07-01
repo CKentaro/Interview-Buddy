@@ -1,4 +1,4 @@
-import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis";
+import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { EvaluationAxis as PrismaEvaluationAxis } from "@/generated/prisma/enums";
 
 // ── Prisma の enum 値 ⇔ ドメインの enum 値（値は同一だが型を明示的に橋渡しする）──

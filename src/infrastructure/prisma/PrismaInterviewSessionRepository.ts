@@ -1,11 +1,11 @@
-import type { Answer } from "@/domain/interview/model/Answer";
+import type { Answer } from "@/domain/interview/model/Answer.entity";
 import type {
   CreateFollowUpQuestionInput,
   IInterviewSessionRepository,
   QuestionAnswerPair,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
-import type { Question } from "@/domain/interview/model/Question";
-import { QuestionType } from "@/domain/interview/model/QuestionType";
+import type { Question } from "@/domain/interview/model/Question.entity";
+import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import type {
   EvaluationAxis as PrismaEvaluationAxis,
   QuestionType as PrismaQuestionType,

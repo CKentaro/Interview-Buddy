@@ -1,4 +1,4 @@
-import type { EvaluationAxis } from "../model/EvaluationAxis";
+import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { QuestionAnswerPair } from "./IInterviewSessionRepository";
 
 /** 深掘り質問を生成するための文脈。 */
