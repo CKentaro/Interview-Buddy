@@ -1,8 +1,8 @@
 import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { Feedback } from "../model/Feedback.entity";
 
-/** 保存する 1 軸分の評価（永続化前なので id を持たない）。 */
-export type NewAxisEvaluation = {
+/** 保存する 1 軸分の講評（永続化前なので id を持たない）。 */
+export type NewAxisFeedback = {
   axis: EvaluationAxis;
   comment: string;
 };
@@ -11,7 +11,7 @@ export type NewAxisEvaluation = {
 export type NewFeedback = {
   sessionId: string;
   overallComment: string;
-  axisEvaluations: NewAxisEvaluation[];
+  axisFeedbacks: NewAxisFeedback[];
 };
 
 /**

@@ -20,8 +20,8 @@ export type FeedbackGenerationContext = {
   allQAPairs: FeedbackQAPair[];
 };
 
-/** 生成された 1 軸分の評価。 */
-export type GeneratedAxisEvaluation = {
+/** 生成された 1 軸分の講評。 */
+export type GeneratedAxisFeedback = {
   axis: EvaluationAxis;
   comment: string;
 };
@@ -29,7 +29,7 @@ export type GeneratedAxisEvaluation = {
 /** 生成されたフィードバック（永続化前）。 */
 export type GeneratedFeedback = {
   overallComment: string;
-  axisEvaluations: GeneratedAxisEvaluation[];
+  axisFeedbacks: GeneratedAxisFeedback[];
 };
 
 /**

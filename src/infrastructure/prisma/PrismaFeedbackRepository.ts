@@ -7,7 +7,7 @@ import type { EvaluationAxis as PrismaEvaluationAxis } from "@/generated/prisma/
 import { prisma } from "@/lib/prisma";
 import { AXIS_TO_DOMAIN, AXIS_TO_PRISMA } from "./evaluationAxisMapping";
 
-type PrismaAxisEvaluationRow = {
+type PrismaAxisFeedbackRow = {
   id: string;
   axis: PrismaEvaluationAxis;
   comment: string;
@@ -17,7 +17,7 @@ type PrismaFeedbackRow = {
   id: string;
   overallComment: string;
   sessionId: string;
-  axisEvaluations: PrismaAxisEvaluationRow[];
+  axisFeedbacks: PrismaAxisFeedbackRow[];
 };
 
 function toDomainFeedback(row: PrismaFeedbackRow): Feedback {
@@ -25,7 +25,7 @@ function toDomainFeedback(row: PrismaFeedbackRow): Feedback {
     id: row.id,
     overallComment: row.overallComment,
     sessionId: row.sessionId,
-    axisEvaluations: row.axisEvaluations.map((e) => ({
+    axisFeedbacks: row.axisFeedbacks.map((e) => ({
       id: e.id,
       axis: AXIS_TO_DOMAIN[e.axis],
       comment: e.comment,
@@ -41,7 +41,7 @@ export class PrismaFeedbackRepository implements IFeedbackRepository {
   async findBySessionId(sessionId: string): Promise<Feedback | null> {
     const row = await prisma.feedback.findUnique({
       where: { sessionId },
-      include: { axisEvaluations: true },
+      include: { axisFeedbacks: true },
     });
     return row === null ? null : toDomainFeedback(row);
   }
@@ -51,14 +51,14 @@ export class PrismaFeedbackRepository implements IFeedbackRepository {
       data: {
         overallComment: feedback.overallComment,
         sessionId: feedback.sessionId,
-        axisEvaluations: {
-          create: feedback.axisEvaluations.map((e) => ({
+        axisFeedbacks: {
+          create: feedback.axisFeedbacks.map((e) => ({
             axis: AXIS_TO_PRISMA[e.axis],
             comment: e.comment,
           })),
         },
       },
-      include: { axisEvaluations: true },
+      include: { axisFeedbacks: true },
     });
     return toDomainFeedback(row);
   }

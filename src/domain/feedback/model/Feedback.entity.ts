@@ -1,4 +1,4 @@
-import type { AxisEvaluation } from "./AxisEvaluation.entity";
+import type { AxisFeedback } from "./AxisFeedback.entity";
 
 /**
  * フィードバックのエンティティ（ユビキタス言語: Feedback）。
@@ -12,6 +12,6 @@ export type Feedback = {
   overallComment: string;
   /** 対象の InterviewSession の id。 */
   sessionId: string;
-  /** 4 軸それぞれの評価。 */
-  axisEvaluations: AxisEvaluation[];
+  /** 4 軸それぞれの講評。 */
+  axisFeedbacks: AxisFeedback[];
 };
