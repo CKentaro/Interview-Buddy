@@ -120,14 +120,14 @@ model Answer {
 }
 
 model Feedback {
-  id              String           @id @default(cuid())
-  overallComment  String
-  sessionId       String           @unique
-  session         InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  axisEvaluations AxisEvaluation[]
+  id             String           @id @default(cuid())
+  overallComment String
+  sessionId      String           @unique
+  session        InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  axisFeedbacks  AxisFeedback[]
 }
 
-model AxisEvaluation {
+model AxisFeedback {
   id         String         @id @default(cuid())
   axis       EvaluationAxis
   comment    String
