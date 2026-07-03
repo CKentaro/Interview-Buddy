@@ -105,7 +105,7 @@ export type AnswerResponse =
 
 // UC06: フィードバック取得
 
-export type AxisEvaluationResult = {
+export type AxisFeedbackResult = {
   axis: EvaluationAxis;
   // 表示用の日本語ラベル。enum をキーにしたラベルマップから引く想定。
   axisLabel: string;
@@ -119,5 +119,5 @@ export type FeedbackResponse =
       status: "completed";
       feedbackId: string;
       overallComment: string;
-      axisEvaluations: AxisEvaluationResult[];
+      axisFeedbacks: AxisFeedbackResult[];
     };

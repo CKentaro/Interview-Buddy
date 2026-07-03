@@ -1,7 +1,7 @@
 ## Interview Buddy 開発標準ガイド（DDDベース）
 
-> **更新日**: 2026-06-26
-> **ドキュメントバージョン**: v1.1.0（ドメイン層を model/services/ports のサブフォルダ構成に変更）
+> **更新日**: 2026-07-01
+> **ドキュメントバージョン**: v1.2.0（モデルのファイル名に `.entity.ts` / `.vo.ts` サフィックスを導入。`AxisEvaluation` を `AxisFeedback` に改称）
 
 このドキュメントは、Interview Buddy プロジェクトの開発標準をチーム全員で統一するためのガイドです。DDD（ドメイン駆動設計：ビジネスの関心ごとを中心にソフトウェアを設計する考え方）をベースに、ディレクトリ構成・命名規則・実装ルールをまとめています。Web開発が初めてのメンバーでも迷わず実装できることを目指しています。
 
@@ -18,27 +18,38 @@ src/
 │   │   ├── auth/               # 認証関連のAPI
 │   │   ├── sessions/           # 面接セッション関連のAPI
 │   │   ├── feedback/           # フィードバック関連のAPI
-│   │   └── users/              # ユーザー関連のAPI
+│   │   ├── users/              # ユーザー関連のAPI
+│   │   └── types.ts            # APIのリクエスト/レスポンス型（DTO）の集約定義
 │   └── (画面ページ)            # ユーザーが見る画面（ページコンポーネント）
+├── components/                 # プレゼンテーション層：画面をまたいで使うReactコンポーネント
+│   ├── auth/                   # 認証まわりのUI（例: SignOutButton）
+│   ├── providers/              # Context Provider など（例: SessionProviderWrapper）
+│   └── ui/                     # 汎用UIパーツ
 ├── domain/                     # ドメイン層：ビジネスの中心的なルールとデータ構造
 │   ├── interview/              # 「面接」に関するドメイン（コンテキスト内を役割で分ける）
-│   │   ├── model/             # エンティティ・値オブジェクト・enum
-│   │   │   ├── InterviewSession.ts # 面接セッションのエンティティ（中心となるデータと振る舞い）
-│   │   │   ├── Question.ts    # 質問のエンティティ
-│   │   │   ├── Answer.ts      # 回答のエンティティ
-│   │   │   └── EvaluationAxis.ts # 評価軸（ドメイン独自 enum）
+│   │   ├── model/             # エンティティ(.entity.ts)・値オブジェクト/enum(.vo.ts)
+│   │   │   ├── InterviewSession.entity.ts # 面接セッションのエンティティ（集約ルート）
+│   │   │   ├── Question.entity.ts    # 質問のエンティティ
+│   │   │   ├── Answer.entity.ts      # 回答のエンティティ
+│   │   │   ├── SelectedQuestion.vo.ts # 抽選された本質問の値オブジェクト
+│   │   │   ├── QuestionBank.vo.ts # 質問バンク（出題元の参照データ）の値オブジェクト
+│   │   │   ├── NextStepDecision.vo.ts # 回答後の分岐判定結果（値オブジェクト）
+│   │   │   ├── QuestionType.vo.ts # 質問種別（MAIN / FOLLOW_UP）の enum
+│   │   │   └── EvaluationAxis.vo.ts # 評価軸そのもの（ドメイン独自 enum）
 │   │   ├── services/         # ドメインサービス（純粋なビジネスロジック）
 │   │   │   ├── decideNextStep.ts     # 回答後の分岐判定（+ .test.ts）
 │   │   │   └── selectMainQuestions.ts # 本質問5問の抽選（+ .test.ts）
 │   │   └── ports/            # 契約（インターフェース。実装はインフラ層）
 │   │       ├── IInterviewSessionRepository.ts # セッション永続化の契約
-│   │       └── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
+│   │       ├── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
+│   │       └── IQuestionBankProvider.ts       # 質問バンク読込の契約
 │   └── feedback/               # 「フィードバック」に関するドメイン（同じく model/services/ports）
 │       ├── model/
-│       │   ├── Feedback.ts    # フィードバックのエンティティ
-│       │   └── AxisEvaluation.ts # 評価軸ごとの評価エンティティ
+│       │   ├── Feedback.entity.ts # フィードバックのエンティティ（集約ルート）
+│       │   └── AxisFeedback.entity.ts # 評価軸ごとの講評エンティティ（軸そのものは EvaluationAxis）
 │       └── ports/
-│           └── IFeedbackRepository.ts # フィードバック永続化の契約
+│           ├── IFeedbackRepository.ts # フィードバック永続化の契約
+│           └── IFeedbackService.ts    # フィードバック（AI評価）生成の契約
 ├── application/                # アプリケーション層：ユースケース（やりたいこと）を組み立てる
 │   ├── interview/              # 面接に関するユースケース
 │   │   ├── StartInterviewUseCase.ts        # 面接を開始する
@@ -50,11 +61,19 @@ src/
 │   ├── prisma/                 # Prisma（DBアクセスツール）を使ったリポジトリ実装
 │   │   ├── PrismaInterviewSessionRepository.ts
 │   │   └── PrismaFeedbackRepository.ts
-│   └── ai/                     # AI（Gemini）を使ったサービス実装
-│       └── GeminiFeedbackService.ts
+│   ├── ai/                     # AI（Gemini）を使ったサービス実装
+│   │   ├── GeminiFollowUpQuestionService.ts # 深掘り質問生成の Gemini 実装（骨格）
+│   │   └── GeminiFeedbackService.ts         # フィードバック生成の Gemini 実装（骨格）
+│   └── questionBank/           # 質問バンク（静的リソース）とその型・読み込み実装
+│       ├── questionBank.json   # 質問バンクのデータ
+│       ├── questionBank.ts     # questionBank.json の生データ形状の型
+│       └── JsonQuestionBankProvider.ts # IQuestionBankProvider の JSON 実装
 ├── lib/                        # 共通ユーティリティ：各層から使う共通の道具
 │   ├── prisma.ts               # Prismaクライアントの初期化
-│   └── auth.ts                 # 認証（Auth.js）の設定
+│   └── auth-guard.ts           # 認証ガード（requireUser など）
+├── auth.ts                     # 認証（Auth.js / NextAuth v5）の設定。v5慣習に従いsrc直下に置く
+├── test/                       # テストのグローバル設定（テスト本体は実装と同階層にコロケーション）
+│   └── setup.ts                # Vitestのセットアップ（vitest.config.ts から読み込む）
 └── generated/                  # 自動生成ファイル（編集禁止）
     └── prisma/                 # Prismaが自動生成する型・クライアント
 ```
@@ -93,10 +112,10 @@ Interview Buddy は「プレゼンテーション層」「アプリケーショ�
 - **依存してよいもの**: 同じドメイン層の中だけ。原則として他のどの層・ライブラリにも依存しない。
 - **依存してはいけないもの**: Prisma・Gemini・Next.js を import してはいけない（最重要ルール）。
 - **コンテキスト内の分け方**: 各ドメイン（`interview/` 等）の中は、役割で 3 つのサブフォルダに分けます。
-  - `model/`: エンティティ・値オブジェクト・enum（そのドメインの「データの形」）。
+  - `model/`: エンティティ・値オブジェクト・enum（そのドメインの「データの形」）。ファイル名の末尾で種別を明示する（エンティティ=`.entity.ts` / 値オブジェクト・enum=`.vo.ts`）。**エンティティは `id` で同一性を持ち更新される**、**値オブジェクトは不変で値そのもの**、という違いで分ける。
   - `services/`: ドメインサービス（複数のエンティティにまたがる純粋なビジネスロジック。例: `decideNextStep`）。
   - `ports/`: 契約（`I〜` インターフェース）。実装はインフラ層に置く（依存性逆転）。
-- **具体例**: [src/domain/interview/model/Question.ts](src/domain/interview/model/Question.ts)、[src/domain/interview/services/decideNextStep.ts](src/domain/interview/services/decideNextStep.ts)、[src/domain/interview/ports/IInterviewSessionRepository.ts](src/domain/interview/ports/IInterviewSessionRepository.ts)。
+- **具体例**: [src/domain/interview/model/Question.entity.ts](src/domain/interview/model/Question.entity.ts)、[src/domain/interview/services/decideNextStep.ts](src/domain/interview/services/decideNextStep.ts)、[src/domain/interview/ports/IInterviewSessionRepository.ts](src/domain/interview/ports/IInterviewSessionRepository.ts)。
 
 ### インフラ層（`infrastructure/`）
 
@@ -113,7 +132,8 @@ Interview Buddy は「プレゼンテーション層」「アプリケーショ�
 
 | 種類 | 命名パターン | 例 |
 |------|------------|-----|
-| エンティティ・値オブジェクト | PascalCase | InterviewSession, Question, SelectedQuestion |
+| エンティティ・値オブジェクト（型名） | PascalCase | InterviewSession, Question, SelectedQuestion, AxisFeedback |
+| モデルのファイル名 | PascalCase + `.entity.ts`（エンティティ）/ `.vo.ts`（値オブジェクト・enum） | Question.entity.ts, SelectedQuestion.vo.ts, EvaluationAxis.vo.ts |
 | ドメインサービス | camelCase（関数名と一致） | decideNextStep, selectMainQuestions |
 | リポジトリIF（インターフェース） | I + PascalCase + Repository | IInterviewSessionRepository |
 | ポートIF（リポジトリ以外の契約） | I + PascalCase + Service / Provider | IFollowUpQuestionService, IQuestionBankProvider |
@@ -132,7 +152,7 @@ TypeScript の型の扱い方を統一します。型は「データの形を保
 - `any` は原則禁止。やむを得ない場合は `unknown`（型が不明であることを明示する型）を使い、型ガードで絞り込む。
 - Prismaの生成型（`generated/prisma/`）をドメイン層にimportしない（ドメイン層を技術的な詳細から守るため）。
 - ドメイン層のエンティティは独自のクラスまたはinterfaceで定義する。
-- APIのリクエスト/レスポンス型は `app/api/` 内で定義する。
+- APIのリクエスト/レスポンス型（DTO）は `app/api/types.ts` に集約する（プレゼンテーション層の関心ごとなので `app/api/` 内に置く）。
 - enumはTypeScriptの `const enum` ではなく通常の `enum` を使用する（Prismaとの互換性のため）。
 - 非同期処理は必ず `Promise` を明示する（戻り値の型に `Promise<...>` を書く）。
 
@@ -194,10 +214,10 @@ export async function POST(): Promise<Response> {
 | Question | クエスチョン | AIが出す質問（MainQuestion / FollowUpQuestion の両方） |
 | Answer | アンサー | ユーザーが回答した内容 |
 | Feedback | フィードバック | Geminiが生成する評価レポート |
-| AxisEvaluation | アクシスイバリュエーション | 4軸それぞれの評価コメント |
+| AxisFeedback | アクシスフィードバック | 4軸それぞれの講評コメント（＝ EvaluationAxis「軸そのもの」に対する評価。語順が似た EvaluationAxis と混同しないこと） |
 | MainQuestion | メインクエスチョン | セッションで出題される大問（5問固定） |
 | FollowUpQuestion | フォローアップクエスチョン | 大問への深掘り質問（最大2回） |
-| EvaluationAxis | イバリュエーションアクシス | 評価の4軸（再現性・価値観/判断軸・自己認識・世界観/知的好奇心） |
+| EvaluationAxis | イバリュエーションアクシス | 評価の4軸そのもの（再現性・価値観/判断軸・自己認識・世界観/知的好奇心）を表す enum。各軸への講評は AxisFeedback |
 
 ---
 

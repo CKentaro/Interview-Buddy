@@ -1,5 +1,5 @@
-import type { EvaluationAxis } from "./EvaluationAxis";
-import { QuestionType } from "./QuestionType";
+import type { EvaluationAxis } from "./EvaluationAxis.vo";
+import { QuestionType } from "./QuestionType.vo";
 
 /**
  * 質問エンティティ（ユビキタス言語: Question）。
