@@ -43,6 +43,10 @@ export type SessionDetailResponse = {
   selectionStage: string | null;
   interviewerType: string | null;
   questions: QuestionWithAnswer[];
+  // 面接終了後フィードバック画面／履歴詳細で QA と一緒に表示する評価を status 付きで埋め込む。
+  // フィードバック生成は非同期のため、完了前は generating / failed を返す（GET /sessions/[id] は
+  // このリソースを 1 本で返し、完了待ちのポーリングだけ軽量な GET /sessions/[id]/feedback を使う）。
+  feedback: FeedbackResponse;
 };
 
 // ─── User me ─────────────────────────────────────────────────
