@@ -43,21 +43,14 @@ export class GetFeedbackUseCase {
       throw new SessionNotFoundError(sessionId);
     }
 
-    const status = determineFeedbackStatus(
-      feedback !== null,
-      sessionState.endedAt,
-      now,
-    );
-
-    // completed は hasFeedback=true から導かれるため feedback は非 null。
-    // 万一のレース（completed 直後に取得漏れ）に備え、null なら generating にフォールバック。
-    if (status === "completed") {
-      if (feedback === null) {
-        return { status: "generating" };
-      }
+    // Feedback が保存されていれば完了（= determineFeedbackStatus の completed と同値）。
+    // feedback で分岐することで型も非 null に絞られる。
+    if (feedback !== null) {
       return { status: "completed", feedback };
     }
 
-    return { status };
+    // 未保存: 面接の終了状態から生成中/失敗を判定する（hasFeedback=false のため completed は返らない）。
+    const status = determineFeedbackStatus(false, sessionState.endedAt, now);
+    return { status: status === "failed" ? "failed" : "generating" };
   }
 }

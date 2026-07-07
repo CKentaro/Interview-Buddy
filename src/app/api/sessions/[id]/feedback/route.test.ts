@@ -68,6 +68,28 @@ describe("GET /api/sessions/[id]/feedback", () => {
     expect(await res.json()).toEqual({ status: "generating" });
   });
 
+  it("Feedback 無し・タイムアウト超過 → 200 failed", async () => {
+    requireUser.mockResolvedValue("user-1");
+    // 十分過去に終了 → determineFeedbackStatus が failed を返す。
+    findOwnedSessionState.mockResolvedValue({
+      endedAt: new Date("2000-01-01T00:00:00.000Z"),
+    });
+    findBySessionId.mockResolvedValue(null);
+    const res = await GET(new Request("http://x"), ctx("sess-1"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "failed" });
+  });
+
+  it("想定外の例外 → 500", async () => {
+    requireUser.mockResolvedValue("user-1");
+    findOwnedSessionState.mockRejectedValue(new Error("db down"));
+    findBySessionId.mockResolvedValue(null);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await GET(new Request("http://x"), ctx("sess-1"));
+    expect(res.status).toBe(500);
+    errorSpy.mockRestore();
+  });
+
   it("Feedback あり → 200 completed（axisLabel 付きで整形）", async () => {
     requireUser.mockResolvedValue("user-1");
     findOwnedSessionState.mockResolvedValue({

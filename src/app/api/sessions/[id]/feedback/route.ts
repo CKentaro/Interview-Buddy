@@ -44,6 +44,9 @@ export async function GET(
     if (error instanceof SessionNotFoundError) {
       return Response.json({ error: "Not Found" }, { status: 404 });
     }
+    // 想定外の失敗（reader/repository 例外など）。ポーリングで繰り返し叩かれるため、
+    // 診断できるようログを残してから 500 を返す。
+    console.error("GET /api/sessions/[id]/feedback failed:", error);
     return Response.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
