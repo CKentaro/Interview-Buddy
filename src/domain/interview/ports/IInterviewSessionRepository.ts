@@ -1,6 +1,27 @@
 import type { Answer } from "../model/Answer.entity";
+import type { InterviewSession } from "../model/InterviewSession.entity";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { Question } from "../model/Question.entity";
+import type { SelectedQuestion } from "../model/SelectedQuestion.vo";
+
+/** 面接セッションを新規作成するための入力。 */
+export type CreateSessionInput = {
+  userId: string;
+  jobTitle?: string;
+  companyName?: string;
+  industryMajor?: string;
+  industryMinor?: string;
+  jobMinor?: string;
+  selectionStage?: string;
+  interviewerType?: string;
+  selectedQuestions: SelectedQuestion[];
+};
+
+/** 面接セッション作成結果。 */
+export type CreateSessionResult = {
+  session: InterviewSession;
+  firstQuestion: Question;
+};
 
 /** 深掘り質問を新規作成するための入力。 */
 export type CreateFollowUpQuestionInput = {
@@ -27,6 +48,9 @@ export type QuestionAnswerPair = {
  * インフラ層に置く（依存性逆転）。アプリケーション層はこの IF にのみ依存する。
  */
 export interface IInterviewSessionRepository {
+  /** セッションと本質問群を 1 トランザクションで作成し、最初の質問を返す。 */
+  createSession(input: CreateSessionInput): Promise<CreateSessionResult>;
+
   /** 回答対象の質問を取得する。存在しなければ null。 */
   findQuestionById(questionId: string): Promise<Question | null>;
 

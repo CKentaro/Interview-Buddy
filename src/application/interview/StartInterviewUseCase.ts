@@ -1,0 +1,69 @@
+import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
+import type { Question } from "@/domain/interview/model/Question.entity";
+import type { IInterviewSessionRepository } from "@/domain/interview/ports/IInterviewSessionRepository";
+import type { IOpeningSpeechService } from "@/domain/interview/ports/IOpeningSpeechService";
+import type { IQuestionBankProvider } from "@/domain/interview/ports/IQuestionBankProvider";
+import { selectMainQuestions } from "@/domain/interview/services/selectMainQuestions";
+
+export type StartInterviewInput = {
+  userId: string;
+  jobTitle?: string;
+  companyName?: string;
+  industryMajor?: string;
+  industryMinor?: string;
+  jobMinor?: string;
+  selectionStage?: string;
+  interviewerType?: string;
+  voiceEnabled?: boolean;
+};
+
+export type StartInterviewResult = {
+  session: InterviewSession;
+  firstQuestion: Question;
+  speechText: string;
+};
+
+export class StartInterviewUseCase {
+  constructor(
+    private readonly questionBankProvider: IQuestionBankProvider,
+    private readonly interviewSessionRepository: IInterviewSessionRepository,
+    private readonly openingSpeechService?: IOpeningSpeechService,
+  ) {}
+
+  async execute(input: StartInterviewInput): Promise<StartInterviewResult> {
+    const bank = this.questionBankProvider.load();
+    const selectedQuestions = selectMainQuestions(bank);
+
+    const { session, firstQuestion } =
+      await this.interviewSessionRepository.createSession({
+        userId: input.userId,
+        jobTitle: input.jobTitle,
+        companyName: input.companyName,
+        industryMajor: input.industryMajor,
+        industryMinor: input.industryMinor,
+        jobMinor: input.jobMinor,
+        selectionStage: input.selectionStage,
+        interviewerType: input.interviewerType,
+        selectedQuestions,
+      });
+
+    let speechText = firstQuestion.content;
+    if (input.voiceEnabled && this.openingSpeechService) {
+      try {
+        const generated = await this.openingSpeechService.generate({
+          displayText: firstQuestion.content,
+          companyName: input.companyName,
+          selectionStage: input.selectionStage,
+          interviewerType: input.interviewerType,
+        });
+        if (generated.trim().length > 0) {
+          speechText = generated;
+        }
+      } catch {
+        speechText = firstQuestion.content;
+      }
+    }
+
+    return { session, firstQuestion, speechText };
+  }
+}
