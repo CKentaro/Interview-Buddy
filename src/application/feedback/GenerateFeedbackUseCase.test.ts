@@ -8,6 +8,7 @@ import type {
   IFeedbackService,
 } from "@/domain/feedback/ports/IFeedbackService";
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import { FeedbackAlreadyExistsError } from "@/domain/feedback/errors";
 import { GenerateFeedbackUseCase } from "./GenerateFeedbackUseCase";
 
 const existingFeedback: Feedback = {
@@ -91,5 +92,18 @@ describe("GenerateFeedbackUseCase", () => {
 
     await expect(useCase.execute("sess-1")).rejects.toThrow("LLM failed");
     expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it("並行実行の一意制約違反（FeedbackAlreadyExistsError）は no-op 扱いにする", async () => {
+    const { useCase, provider, service, repository } = setup();
+    // 事前チェックはすり抜けたが save で一意制約に弾かれるケース。
+    (repository.save as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new FeedbackAlreadyExistsError("sess-1"),
+    );
+
+    // 例外を投げず正常終了する（別の生成が先に成功した）。
+    await expect(useCase.execute("sess-1")).resolves.toBeUndefined();
+    expect(provider.loadQARows).toHaveBeenCalled();
+    expect(service.generate).toHaveBeenCalled();
   });
 });

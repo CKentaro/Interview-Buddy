@@ -1,3 +1,4 @@
+import { FeedbackAlreadyExistsError } from "@/domain/feedback/errors";
 import type { IFeedbackContextProvider } from "@/domain/feedback/ports/IFeedbackContextProvider";
 import type { IFeedbackRepository } from "@/domain/feedback/ports/IFeedbackRepository";
 import type { IFeedbackService } from "@/domain/feedback/ports/IFeedbackService";
@@ -32,13 +33,21 @@ export class GenerateFeedbackUseCase {
     const generated = await this.feedbackService.generate(context);
 
     // 全成功時のみ保存（Feedback＋AxisFeedback を 1 まとめに）。
-    await this.feedbackRepository.save({
-      sessionId,
-      overallComment: generated.overallComment,
-      axisFeedbacks: generated.axisFeedbacks.map((a) => ({
-        axis: a.axis,
-        comment: a.comment,
-      })),
-    });
+    try {
+      await this.feedbackRepository.save({
+        sessionId,
+        overallComment: generated.overallComment,
+        axisFeedbacks: generated.axisFeedbacks.map((a) => ({
+          axis: a.axis,
+          comment: a.comment,
+        })),
+      });
+    } catch (error) {
+      // 並行実行で別の生成が先に保存済み。二重生成ガードの一部として no-op 扱いにする。
+      if (error instanceof FeedbackAlreadyExistsError) {
+        return;
+      }
+      throw error;
+    }
   }
 }
