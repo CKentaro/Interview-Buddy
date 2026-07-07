@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import type { UserMeResponse } from "@/app/api/types";
 import { DeleteUserUseCase } from "@/application/user/DeleteUserUseCase";
 import { UserNotFoundError } from "@/application/user/errors";
@@ -24,14 +23,14 @@ function toUserMeResponse(profile: UserProfile): UserMeResponse {
  * - 非存在／非本人 → 404（秘匿）
  * - それ以外 → 500
  */
-function toErrorResponse(error: unknown): NextResponse {
+function toErrorResponse(error: unknown): Response {
   if (error instanceof UnauthorizedError) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (error instanceof UserNotFoundError) {
-    return NextResponse.json({ error: "Not Found" }, { status: 404 });
+    return Response.json({ error: "Not Found" }, { status: 404 });
   }
-  return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  return Response.json({ error: "Internal Server Error" }, { status: 500 });
 }
 
 /** GET /api/users/[id] — 本人のプロフィール＋利用サマリを返す。 */
@@ -44,7 +43,7 @@ export async function GET(
     const { id } = await ctx.params;
     const useCase = new GetUserUseCase(new PrismaUserRepository());
     const profile = await useCase.execute(userId, id);
-    return NextResponse.json(toUserMeResponse(profile));
+    return Response.json(toUserMeResponse(profile));
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -60,7 +59,7 @@ export async function DELETE(
     const { id } = await ctx.params;
     const useCase = new DeleteUserUseCase(new PrismaUserRepository());
     await useCase.execute(userId, id);
-    return new NextResponse(null, { status: 204 });
+    return new Response(null, { status: 204 });
   } catch (error) {
     return toErrorResponse(error);
   }

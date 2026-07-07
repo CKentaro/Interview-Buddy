@@ -37,7 +37,9 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async delete(userId: string): Promise<void> {
+    // deleteMany は対象が無くても throw しない（冪等）。ポート契約「存在しない
+    // ユーザーの削除は何もしない」を満たし、二重 DELETE でも 204 を返せる。
     // 関連（InterviewSession / Account / Session 等）は schema の onDelete: Cascade で削除される。
-    await prisma.user.delete({ where: { id: userId } });
+    await prisma.user.deleteMany({ where: { id: userId } });
   }
 }
