@@ -1,8 +1,10 @@
+import { FeedbackAlreadyExistsError } from "@/domain/feedback/errors";
 import type { Feedback } from "@/domain/feedback/model/Feedback.entity";
 import type {
   IFeedbackRepository,
   NewFeedback,
 } from "@/domain/feedback/ports/IFeedbackRepository";
+import { Prisma } from "@/generated/prisma/client";
 import type { EvaluationAxis as PrismaEvaluationAxis } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { AXIS_TO_DOMAIN, AXIS_TO_PRISMA } from "./evaluationAxisMapping";
@@ -47,19 +49,31 @@ export class PrismaFeedbackRepository implements IFeedbackRepository {
   }
 
   async save(feedback: NewFeedback): Promise<Feedback> {
-    const row = await prisma.feedback.create({
-      data: {
-        overallComment: feedback.overallComment,
-        sessionId: feedback.sessionId,
-        axisFeedbacks: {
-          create: feedback.axisFeedbacks.map((e) => ({
-            axis: AXIS_TO_PRISMA[e.axis],
-            comment: e.comment,
-          })),
+    try {
+      const row = await prisma.feedback.create({
+        data: {
+          overallComment: feedback.overallComment,
+          sessionId: feedback.sessionId,
+          axisFeedbacks: {
+            create: feedback.axisFeedbacks.map((e) => ({
+              axis: AXIS_TO_PRISMA[e.axis],
+              comment: e.comment,
+            })),
+          },
         },
-      },
-      include: { axisFeedbacks: true },
-    });
-    return toDomainFeedback(row);
+        include: { axisFeedbacks: true },
+      });
+      return toDomainFeedback(row);
+    } catch (error) {
+      // 一意制約違反（sessionId @unique）= 並行実行で別の生成が先に成功した状態。
+      // Prisma 固有エラーはここ（インフラ層）でドメインエラーへ翻訳する。
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new FeedbackAlreadyExistsError(feedback.sessionId);
+      }
+      throw error;
+    }
   }
 }
