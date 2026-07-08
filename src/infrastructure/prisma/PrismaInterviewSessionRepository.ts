@@ -6,7 +6,11 @@ import type {
   CreateSessionResult,
   IInterviewSessionRepository,
   QuestionAnswerPair,
+  SaveAnswerAndCompleteSessionInput,
+  SaveAnswerAndCreateFollowUpQuestionInput,
+  SaveAnswerAndCreateFollowUpQuestionResult,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
+import { DuplicateAnswerError as DuplicateAnswerErrorClass } from "@/domain/interview/ports/IInterviewSessionRepository";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import type {
@@ -79,6 +83,29 @@ function toDomainInterviewSession(
   };
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+async function mapDuplicateAnswer<T>(
+  questionId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new DuplicateAnswerErrorClass(questionId);
+    }
+    throw error;
+  }
+}
+
 /**
  * IInterviewSessionRepository の Prisma 実装。
  * ドメイン層が定義したインターフェースを Prisma で実装する（依存性逆転）。
@@ -128,9 +155,40 @@ export class PrismaInterviewSessionRepository
     });
   }
 
+  async findSessionByIdForUser(
+    sessionId: string,
+    userId: string,
+  ): Promise<InterviewSession | null> {
+    const row = await prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId },
+      include: { questions: { orderBy: { displayOrder: "asc" } } },
+    });
+    return row === null
+      ? null
+      : toDomainInterviewSession(row, row.questions.map(toDomainQuestion));
+  }
+
   async findQuestionById(questionId: string): Promise<Question | null> {
     const row = await prisma.question.findUnique({ where: { id: questionId } });
     return row === null ? null : toDomainQuestion(row);
+  }
+
+  async findQuestionByIdInSession(
+    sessionId: string,
+    questionId: string,
+  ): Promise<Question | null> {
+    const row = await prisma.question.findFirst({
+      where: { id: questionId, sessionId },
+    });
+    return row === null ? null : toDomainQuestion(row);
+  }
+
+  async hasAnswerForQuestion(questionId: string): Promise<boolean> {
+    const row = await prisma.answer.findUnique({
+      where: { questionId },
+      select: { id: true },
+    });
+    return row !== null;
   }
 
   async findNextMainQuestion(
@@ -171,13 +229,16 @@ export class PrismaInterviewSessionRepository
       orderBy: { displayOrder: "asc" },
     });
     return rows.map((row) => ({
+      questionId: row.id,
       questionText: row.content,
       answerText: row.answer?.content ?? null,
     }));
   }
 
   async saveAnswer(questionId: string, content: string): Promise<Answer> {
-    const row = await prisma.answer.create({ data: { content, questionId } });
+    const row = await mapDuplicateAnswer(questionId, () =>
+      prisma.answer.create({ data: { content, questionId } }),
+    );
     return { id: row.id, content: row.content, questionId: row.questionId };
   }
 
@@ -197,6 +258,75 @@ export class PrismaInterviewSessionRepository
       },
     });
     return toDomainQuestion(row);
+  }
+
+  async saveAnswerAndCreateFollowUpQuestion(
+    input: SaveAnswerAndCreateFollowUpQuestionInput,
+  ): Promise<SaveAnswerAndCreateFollowUpQuestionResult> {
+    return mapDuplicateAnswer(input.answer.questionId, async () => {
+      const result = await prisma.$transaction(async (tx) => {
+        const answerRow = await tx.answer.create({
+          data: {
+            content: input.answer.content,
+            questionId: input.answer.questionId,
+          },
+        });
+
+        const questionRow = await tx.question.create({
+          data: {
+            type: "FOLLOW_UP",
+            content: input.followUpQuestion.content,
+            displayOrder: input.followUpQuestion.displayOrder,
+            depthCount: input.followUpQuestion.depthCount,
+            primaryAxis:
+              input.followUpQuestion.primaryAxis === null
+                ? null
+                : AXIS_TO_PRISMA[input.followUpQuestion.primaryAxis],
+            sessionId: input.followUpQuestion.sessionId,
+            parentQuestionId: input.followUpQuestion.parentMainQuestionId,
+          },
+        });
+
+        return { answerRow, questionRow };
+      });
+
+      return {
+        answer: {
+          id: result.answerRow.id,
+          content: result.answerRow.content,
+          questionId: result.answerRow.questionId,
+        },
+        followUpQuestion: toDomainQuestion(result.questionRow),
+      };
+    });
+  }
+
+  async saveAnswerAndCompleteSession(
+    input: SaveAnswerAndCompleteSessionInput,
+  ): Promise<Answer> {
+    return mapDuplicateAnswer(input.answer.questionId, async () => {
+      const answerRow = await prisma.$transaction(async (tx) => {
+        const row = await tx.answer.create({
+          data: {
+            content: input.answer.content,
+            questionId: input.answer.questionId,
+          },
+        });
+
+        await tx.interviewSession.update({
+          where: { id: input.sessionId },
+          data: { endedAt: new Date() },
+        });
+
+        return row;
+      });
+
+      return {
+        id: answerRow.id,
+        content: answerRow.content,
+        questionId: answerRow.questionId,
+      };
+    });
   }
 
   async completeSession(sessionId: string): Promise<void> {
