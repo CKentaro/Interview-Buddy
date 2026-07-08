@@ -23,6 +23,12 @@ export type CreateSessionResult = {
   firstQuestion: Question;
 };
 
+/** 回答を新規作成するための入力。 */
+export type SaveAnswerInput = {
+  questionId: string;
+  content: string;
+};
+
 /** 深掘り質問を新規作成するための入力。 */
 export type CreateFollowUpQuestionInput = {
   sessionId: string;
@@ -37,9 +43,36 @@ export type CreateFollowUpQuestionInput = {
 
 /** 深掘り質問生成の文脈に使う、1 つの質問とその回答の組。 */
 export type QuestionAnswerPair = {
+  questionId: string;
   questionText: string;
   answerText: string | null;
 };
+
+/** 回答と深掘り質問を同一トランザクションで保存するための入力。 */
+export type SaveAnswerAndCreateFollowUpQuestionInput = {
+  answer: SaveAnswerInput;
+  followUpQuestion: CreateFollowUpQuestionInput;
+};
+
+/** 回答と深掘り質問を同一トランザクションで保存した結果。 */
+export type SaveAnswerAndCreateFollowUpQuestionResult = {
+  answer: Answer;
+  followUpQuestion: Question;
+};
+
+/** 回答保存とセッション終了を同一トランザクションで行うための入力。 */
+export type SaveAnswerAndCompleteSessionInput = {
+  sessionId: string;
+  answer: SaveAnswerInput;
+};
+
+/** 質問にすでに回答が存在することを表す。 */
+export class DuplicateAnswerError extends Error {
+  constructor(questionId: string) {
+    super(`Question already has an answer: ${questionId}`);
+    this.name = "DuplicateAnswerError";
+  }
+}
 
 /**
  * 面接セッションの永続化に対する契約（リポジトリ・インターフェース）。
@@ -51,8 +84,23 @@ export interface IInterviewSessionRepository {
   /** セッションと本質問群を 1 トランザクションで作成し、最初の質問を返す。 */
   createSession(input: CreateSessionInput): Promise<CreateSessionResult>;
 
+  /** 指定ユーザーに属するセッションを取得する。存在しなければ null。 */
+  findSessionByIdForUser(
+    sessionId: string,
+    userId: string,
+  ): Promise<InterviewSession | null>;
+
   /** 回答対象の質問を取得する。存在しなければ null。 */
   findQuestionById(questionId: string): Promise<Question | null>;
+
+  /** セッション内の質問を取得する。存在しなければ null。 */
+  findQuestionByIdInSession(
+    sessionId: string,
+    questionId: string,
+  ): Promise<Question | null>;
+
+  /** 質問に回答が保存済みかどうかを返す。 */
+  hasAnswerForQuestion(questionId: string): Promise<boolean>;
 
   /**
    * 与えた MainQuestion の次（displayOrder が 1 つ大きい MAIN）を取得する。
@@ -80,6 +128,16 @@ export interface IInterviewSessionRepository {
 
   /** 深掘り質問を作成して返す。 */
   createFollowUpQuestion(input: CreateFollowUpQuestionInput): Promise<Question>;
+
+  /** 回答と深掘り質問を同一トランザクションで保存する。 */
+  saveAnswerAndCreateFollowUpQuestion(
+    input: SaveAnswerAndCreateFollowUpQuestionInput,
+  ): Promise<SaveAnswerAndCreateFollowUpQuestionResult>;
+
+  /** 回答保存とセッション終了を同一トランザクションで行う。 */
+  saveAnswerAndCompleteSession(
+    input: SaveAnswerAndCompleteSessionInput,
+  ): Promise<Answer>;
 
   /** セッションを終了状態にする（endedAt を記録）。 */
   completeSession(sessionId: string): Promise<void>;

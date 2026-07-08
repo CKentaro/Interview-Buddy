@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import type { Answer } from "@/domain/interview/model/Answer.entity";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
@@ -9,6 +10,7 @@ import type {
   CreateSessionResult,
   IInterviewSessionRepository,
   QuestionAnswerPair,
+  SaveAnswerAndCreateFollowUpQuestionResult,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
 import type { IOpeningSpeechService } from "@/domain/interview/ports/IOpeningSpeechService";
 import type { IQuestionBankProvider } from "@/domain/interview/ports/IQuestionBankProvider";
@@ -80,6 +82,18 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
     throw new Error("Not implemented");
   }
 
+  async findSessionByIdForUser(): Promise<never> {
+    throw new Error("Not implemented");
+  }
+
+  async findQuestionByIdInSession(): Promise<Question | null> {
+    throw new Error("Not implemented");
+  }
+
+  async hasAnswerForQuestion(): Promise<boolean> {
+    throw new Error("Not implemented");
+  }
+
   async findNextMainQuestion(): Promise<Question | null> {
     throw new Error("Not implemented");
   }
@@ -97,6 +111,14 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   }
 
   async createFollowUpQuestion(): Promise<Question> {
+    throw new Error("Not implemented");
+  }
+
+  async saveAnswerAndCreateFollowUpQuestion(): Promise<SaveAnswerAndCreateFollowUpQuestionResult> {
+    throw new Error("Not implemented");
+  }
+
+  async saveAnswerAndCompleteSession(): Promise<Answer> {
     throw new Error("Not implemented");
   }
 
