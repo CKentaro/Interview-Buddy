@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
-import type { CreateSessionInput } from "@/domain/interview/ports/IInterviewSessionRepository";
-import { POST } from "./route";
+import type {
+  CreateSessionInput,
+  SessionSummary,
+} from "@/domain/interview/ports/IInterviewSessionRepository";
+import { GET, POST } from "./route";
 
 const routeMocks = vi.hoisted(() => {
   class UnauthorizedError extends Error {
@@ -17,6 +20,7 @@ const routeMocks = vi.hoisted(() => {
     UnauthorizedError,
     bank: undefined as unknown,
     createSessionInputs: [] as CreateSessionInput[],
+    completedSessions: [] as SessionSummary[],
     requireUser: vi.fn<() => Promise<string>>(),
   };
 });
@@ -70,6 +74,10 @@ vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
           parentQuestionId: null,
         },
       };
+    }
+
+    async findCompletedByUser(): Promise<SessionSummary[]> {
+      return routeMocks.completedSessions;
     }
   },
 }));
@@ -169,6 +177,66 @@ describe("POST /api/sessions", () => {
         speechText: expect.any(String),
         parentQuestionId: null,
       },
+    });
+  });
+});
+
+describe("GET /api/sessions", () => {
+  beforeEach(() => {
+    routeMocks.completedSessions = [];
+    routeMocks.requireUser.mockReset();
+    routeMocks.requireUser.mockResolvedValue("user-1");
+  });
+
+  it("未認証なら 401 を返す", async () => {
+    routeMocks.requireUser.mockRejectedValue(
+      new routeMocks.UnauthorizedError(),
+    );
+
+    const response = await GET();
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
+  });
+
+  it("完了済み一覧を SessionListResponse で返す（日時は ISO 文字列）", async () => {
+    routeMocks.completedSessions = [
+      {
+        id: "sess-2",
+        startedAt: new Date("2026-07-02T00:00:00.000Z"),
+        endedAt: new Date("2026-07-02T01:00:00.000Z"),
+        companyName: "B社",
+        industryMajor: null,
+        industryMinor: null,
+        jobMajor: null,
+        jobMinor: null,
+        selectionStage: null,
+        interviewerType: null,
+        questionCount: 5,
+        hasFeedback: true,
+      },
+    ];
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      sessions: [
+        {
+          id: "sess-2",
+          startedAt: "2026-07-02T00:00:00.000Z",
+          endedAt: "2026-07-02T01:00:00.000Z",
+          companyName: "B社",
+          industryMajor: null,
+          industryMinor: null,
+          jobMajor: null,
+          jobMinor: null,
+          selectionStage: null,
+          interviewerType: null,
+          questionCount: 5,
+          hasFeedback: true,
+        },
+      ],
     });
   });
 });

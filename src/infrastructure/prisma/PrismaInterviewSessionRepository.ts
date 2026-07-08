@@ -5,10 +5,12 @@ import type {
   CreateSessionInput,
   CreateSessionResult,
   IInterviewSessionRepository,
+  InterviewSessionDetail,
   QuestionAnswerPair,
   SaveAnswerAndCompleteSessionInput,
   SaveAnswerAndCreateFollowUpQuestionInput,
   SaveAnswerAndCreateFollowUpQuestionResult,
+  SessionSummary,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
 import { DuplicateAnswerError as DuplicateAnswerErrorClass } from "@/domain/interview/ports/IInterviewSessionRepository";
 import type { Question } from "@/domain/interview/model/Question.entity";
@@ -166,6 +168,94 @@ export class PrismaInterviewSessionRepository
     return row === null
       ? null
       : toDomainInterviewSession(row, row.questions.map(toDomainQuestion));
+  }
+
+  async deleteOwnedSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<boolean> {
+    // where に userId を含めて所有を保証（非所有は count 0）。関連は onDelete: Cascade。
+    // deleteMany なので対象が無くても throw せず、削除件数で成否を返す。
+    const result = await prisma.interviewSession.deleteMany({
+      where: { id: sessionId, userId },
+    });
+    return result.count > 0;
+  }
+
+  async findCompletedByUser(userId: string): Promise<SessionSummary[]> {
+    const rows = await prisma.interviewSession.findMany({
+      where: { userId, endedAt: { not: null } },
+      orderBy: { startedAt: "desc" },
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        companyName: true,
+        industryMajor: true,
+        industryMinor: true,
+        jobMajor: true,
+        jobMinor: true,
+        selectionStage: true,
+        interviewerType: true,
+        _count: { select: { questions: true } },
+        feedback: { select: { id: true } },
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt,
+      companyName: row.companyName,
+      industryMajor: row.industryMajor,
+      industryMinor: row.industryMinor,
+      jobMajor: row.jobMajor,
+      jobMinor: row.jobMinor,
+      selectionStage: row.selectionStage,
+      interviewerType: row.interviewerType,
+      questionCount: row._count.questions,
+      hasFeedback: row.feedback !== null,
+    }));
+  }
+
+  async findDetailById(
+    userId: string,
+    sessionId: string,
+  ): Promise<InterviewSessionDetail | null> {
+    const row = await prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId },
+      include: {
+        questions: {
+          orderBy: { displayOrder: "asc" },
+          include: { answer: { select: { id: true, content: true } } },
+        },
+      },
+    });
+    if (row === null) {
+      return null;
+    }
+
+    return {
+      id: row.id,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt,
+      companyName: row.companyName,
+      industryMajor: row.industryMajor,
+      industryMinor: row.industryMinor,
+      jobMajor: row.jobMajor,
+      jobMinor: row.jobMinor,
+      selectionStage: row.selectionStage,
+      interviewerType: row.interviewerType,
+      questions: row.questions.map((q) => ({
+        id: q.id,
+        type: TYPE_TO_DOMAIN[q.type],
+        content: q.content,
+        displayOrder: q.displayOrder,
+        primaryAxis: q.primaryAxis === null ? null : AXIS_TO_DOMAIN[q.primaryAxis],
+        parentQuestionId: q.parentQuestionId,
+        answer: q.answer === null ? null : { id: q.answer.id, content: q.answer.content },
+      })),
+    };
   }
 
   async findQuestionById(questionId: string): Promise<Question | null> {

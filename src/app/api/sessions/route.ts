@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { toSessionListItem } from "@/app/api/sessionPresenter";
+import type {
+  QuestionResponse,
+  SessionListResponse,
+  SessionResponse,
+} from "@/app/api/types";
+import { GetInterviewHistoryUseCase } from "@/application/interview/GetInterviewHistoryUseCase";
 import { StartInterviewUseCase } from "@/application/interview/StartInterviewUseCase";
 import { QuestionType as DomainQuestionType } from "@/domain/interview/model/QuestionType.vo";
-import type { QuestionResponse, SessionResponse } from "@/app/api/types";
 import { QuestionType as PrismaQuestionType } from "@/generated/prisma/enums";
 import { JsonQuestionBankProvider } from "@/infrastructure/questionBank/JsonQuestionBankProvider";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
@@ -74,4 +80,27 @@ export async function POST(request: Request): Promise<NextResponse> {
   };
 
   return NextResponse.json(response, { status: 201 });
+}
+
+/** GET /api/sessions — 本人の完了済み面接の一覧（新しい順）を返す。 */
+export async function GET(): Promise<NextResponse> {
+  let userId: string;
+  try {
+    userId = await requireUser();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    throw error;
+  }
+
+  const useCase = new GetInterviewHistoryUseCase(
+    new PrismaInterviewSessionRepository(),
+  );
+  const sessions = await useCase.execute(userId);
+
+  const response: SessionListResponse = {
+    sessions: sessions.map(toSessionListItem),
+  };
+  return NextResponse.json(response);
 }

@@ -218,6 +218,18 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   async completeSession(): Promise<void> {
     throw new Error("Use saveAnswerAndCompleteSession instead");
   }
+
+  async deleteOwnedSession(): Promise<boolean> {
+    throw new Error("Not implemented");
+  }
+
+  async findDetailById(): Promise<null> {
+    throw new Error("Not implemented");
+  }
+
+  async findCompletedByUser(): Promise<never[]> {
+    throw new Error("Not implemented");
+  }
 }
 
 class FakeFollowUpQuestionService implements IFollowUpQuestionService {

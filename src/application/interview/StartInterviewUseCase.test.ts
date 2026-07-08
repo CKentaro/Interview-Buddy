@@ -125,6 +125,18 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   async completeSession(): Promise<void> {
     throw new Error("Not implemented");
   }
+
+  async deleteOwnedSession(): Promise<boolean> {
+    throw new Error("Not implemented");
+  }
+
+  async findDetailById(): Promise<null> {
+    throw new Error("Not implemented");
+  }
+
+  async findCompletedByUser(): Promise<never[]> {
+    throw new Error("Not implemented");
+  }
 }
 
 class FakeOpeningSpeechService implements IOpeningSpeechService {
