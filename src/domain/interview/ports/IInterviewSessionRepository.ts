@@ -2,7 +2,53 @@ import type { Answer } from "../model/Answer.entity";
 import type { InterviewSession } from "../model/InterviewSession.entity";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { Question } from "../model/Question.entity";
+import type { QuestionType } from "../model/QuestionType.vo";
 import type { SelectedQuestion } from "../model/SelectedQuestion.vo";
+
+/** 面接詳細の 1 問分（質問＋その回答。未回答なら answer は null）。 */
+export type SessionQuestionWithAnswer = {
+  id: string;
+  type: QuestionType;
+  content: string;
+  displayOrder: number;
+  primaryAxis: EvaluationAxis | null;
+  parentQuestionId: string | null;
+  answer: { id: string; content: string } | null;
+};
+
+/** 履歴一覧の 1 行（完了済みセッションのサマリ）。 */
+export type SessionSummary = {
+  id: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  /** そのセッションの質問数（MAIN＋FOLLOW_UP）。 */
+  questionCount: number;
+  /** Feedback が生成済みか。 */
+  hasFeedback: boolean;
+};
+
+/** 面接詳細（セッション情報＋Q&A 書き起こし）。feedback は別ポートで合成する。 */
+export type InterviewSessionDetail = {
+  id: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  /** displayOrder 昇順。MAIN / FOLLOW_UP を含む。 */
+  questions: SessionQuestionWithAnswer[];
+};
 
 /** 面接セッションを新規作成するための入力。 */
 export type CreateSessionInput = {
@@ -89,6 +135,27 @@ export interface IInterviewSessionRepository {
     sessionId: string,
     userId: string,
   ): Promise<InterviewSession | null>;
+
+  /**
+   * 本人のセッションを削除する（関連はカスケード）。userId スコープで所有を保証し、
+   * 削除できたら true、対象が無い/非所有なら false（呼び出し側で 404 秘匿に使う）。
+   */
+  deleteOwnedSession(userId: string, sessionId: string): Promise<boolean>;
+
+  /**
+   * 本人のセッション詳細（Q&A を displayOrder 昇順で内包）を取得する。
+   * 存在しない、または本人のセッションでなければ null（404 秘匿に使う）。
+   */
+  findDetailById(
+    userId: string,
+    sessionId: string,
+  ): Promise<InterviewSessionDetail | null>;
+
+  /**
+   * 本人の完了済み（endedAt != null）セッション一覧を startedAt 降順で返す。
+   * 各行に質問数と Feedback 有無を含む。中断セッションは含めない。
+   */
+  findCompletedByUser(userId: string): Promise<SessionSummary[]>;
 
   /** 回答対象の質問を取得する。存在しなければ null。 */
   findQuestionById(questionId: string): Promise<Question | null>;
