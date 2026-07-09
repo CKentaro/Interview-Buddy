@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { toSessionListItem } from "@/app/api/sessionPresenter";
+import { jsonError, toErrorResponse } from "@/app/api/httpError";
+import { toApiQuestionType, toSessionListItem } from "@/app/api/sessionPresenter";
 import type {
   QuestionResponse,
   SessionListResponse,
@@ -9,11 +9,9 @@ import type {
 } from "@/app/api/types";
 import { GetInterviewHistoryUseCase } from "@/application/interview/GetInterviewHistoryUseCase";
 import { StartInterviewUseCase } from "@/application/interview/StartInterviewUseCase";
-import { QuestionType as DomainQuestionType } from "@/domain/interview/model/QuestionType.vo";
-import { QuestionType as PrismaQuestionType } from "@/generated/prisma/enums";
 import { JsonQuestionBankProvider } from "@/infrastructure/questionBank/JsonQuestionBankProvider";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
-import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
+import { requireUser } from "@/lib/auth-guard";
 
 const createSessionSchema = z
   .object({
@@ -28,79 +26,66 @@ const createSessionSchema = z
   })
   .strict();
 
-function toApiQuestionType(type: DomainQuestionType): PrismaQuestionType {
-  return type === DomainQuestionType.MAIN
-    ? PrismaQuestionType.MAIN
-    : PrismaQuestionType.FOLLOW_UP;
-}
-
-export async function POST(request: Request): Promise<NextResponse> {
-  let userId: string;
+/** POST /api/sessions — 面接セッションを作成し、最初の質問を返す。 */
+export async function POST(request: Request): Promise<Response> {
   try {
-    userId = await requireUser();
-  } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = await requireUser();
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("Invalid JSON", 400);
     }
-    throw error;
-  }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    const parsed = createSessionSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Bad Request", details: parsed.error.issues },
+        { status: 400 },
+      );
+    }
 
-  const parsed = createSessionSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Bad Request", details: parsed.error.issues },
-      { status: 400 },
+    const useCase = new StartInterviewUseCase(
+      new JsonQuestionBankProvider(),
+      new PrismaInterviewSessionRepository(),
     );
+    const result = await useCase.execute({ userId, ...parsed.data });
+
+    const firstQuestion: QuestionResponse = {
+      id: result.firstQuestion.id,
+      type: toApiQuestionType(result.firstQuestion.type),
+      text: result.firstQuestion.content,
+      speechText: result.speechText,
+      parentQuestionId: result.firstQuestion.parentQuestionId,
+    };
+    const response: SessionResponse = {
+      sessionId: result.session.id,
+      createdAt: result.session.startedAt.toISOString(),
+      firstQuestion,
+    };
+
+    return Response.json(response, { status: 201 });
+  } catch (error) {
+    return toErrorResponse(error, "POST /api/sessions");
   }
-
-  const useCase = new StartInterviewUseCase(
-    new JsonQuestionBankProvider(),
-    new PrismaInterviewSessionRepository(),
-  );
-  const result = await useCase.execute({ userId, ...parsed.data });
-
-  const firstQuestion: QuestionResponse = {
-    id: result.firstQuestion.id,
-    type: toApiQuestionType(result.firstQuestion.type),
-    text: result.firstQuestion.content,
-    speechText: result.speechText,
-    parentQuestionId: result.firstQuestion.parentQuestionId,
-  };
-  const response: SessionResponse = {
-    sessionId: result.session.id,
-    createdAt: result.session.startedAt.toISOString(),
-    firstQuestion,
-  };
-
-  return NextResponse.json(response, { status: 201 });
 }
 
 /** GET /api/sessions — 本人の完了済み面接の一覧（新しい順）を返す。 */
-export async function GET(): Promise<NextResponse> {
-  let userId: string;
+export async function GET(): Promise<Response> {
   try {
-    userId = await requireUser();
+    const userId = await requireUser();
+
+    const useCase = new GetInterviewHistoryUseCase(
+      new PrismaInterviewSessionRepository(),
+    );
+    const sessions = await useCase.execute(userId);
+
+    const response: SessionListResponse = {
+      sessions: sessions.map(toSessionListItem),
+    };
+    return Response.json(response);
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    throw error;
+    return toErrorResponse(error, "GET /api/sessions");
   }
-
-  const useCase = new GetInterviewHistoryUseCase(
-    new PrismaInterviewSessionRepository(),
-  );
-  const sessions = await useCase.execute(userId);
-
-  const response: SessionListResponse = {
-    sessions: sessions.map(toSessionListItem),
-  };
-  return NextResponse.json(response);
 }

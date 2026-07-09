@@ -1,6 +1,8 @@
-import { after, NextResponse } from "next/server";
+import { after } from "next/server";
 import { z } from "zod";
 
+import { jsonError, toErrorResponse } from "@/app/api/httpError";
+import { toApiQuestionType } from "@/app/api/sessionPresenter";
 import {
   AnswerQuestionUseCase,
   type AnswerQuestionResult,
@@ -10,13 +12,15 @@ import {
   QuestionNotFoundError,
   SessionNotFoundError,
 } from "@/application/interview/AnswerQuestionUseCase";
-import { QuestionType as DomainQuestionType } from "@/domain/interview/model/QuestionType.vo";
+import { GenerateFeedbackUseCase } from "@/application/feedback/GenerateFeedbackUseCase";
 import type { AnswerResponse, SubmitAnswerRequest } from "@/app/api/types";
-import { QuestionType as PrismaQuestionType } from "@/generated/prisma/enums";
+import { GeminiFeedbackService } from "@/infrastructure/ai/GeminiFeedbackService";
 import { GeminiFollowUpQuestionService } from "@/infrastructure/ai/GeminiFollowUpQuestionService";
 import { GeminiQuestionSpeechService } from "@/infrastructure/ai/GeminiQuestionSpeechService";
+import { PrismaFeedbackContextProvider } from "@/infrastructure/prisma/PrismaFeedbackContextProvider";
+import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
-import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
+import { requireUser } from "@/lib/auth-guard";
 
 const submitAnswerSchema = z
   .object({
@@ -25,12 +29,6 @@ const submitAnswerSchema = z
     voiceEnabled: z.boolean().optional(),
   })
   .strict();
-
-function toApiQuestionType(type: DomainQuestionType): PrismaQuestionType {
-  return type === DomainQuestionType.MAIN
-    ? PrismaQuestionType.MAIN
-    : PrismaQuestionType.FOLLOW_UP;
-}
 
 function toAnswerResponse(result: AnswerQuestionResult): AnswerResponse {
   if (result.action === "complete") {
@@ -55,51 +53,55 @@ function toAnswerResponse(result: AnswerQuestionResult): AnswerResponse {
 }
 
 function scheduleFeedbackGeneration(sessionId: string): void {
-  after(() => {
-    // GenerateFeedbackUseCase is wired in the feedback phase.
-    void sessionId;
+  // 面接完了時にフィードバック生成をレスポンス後へ予約する（POST /feedback/generate と同じ経路）。
+  // 二重生成ガードは UseCase 側にあり、失敗は伝搬させずログのみ（ポーリングで failed 判定される）。
+  const useCase = new GenerateFeedbackUseCase(
+    new PrismaFeedbackContextProvider(),
+    new GeminiFeedbackService(),
+    new PrismaFeedbackRepository(),
+  );
+  after(async () => {
+    try {
+      await useCase.execute(sessionId);
+    } catch (error) {
+      console.error(
+        `Feedback generation failed for session ${sessionId}:`,
+        error,
+      );
+    }
   });
 }
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
-): Promise<NextResponse> {
-  let userId: string;
+): Promise<Response> {
   try {
-    userId = await requireUser();
-  } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const userId = await requireUser();
+    const { id: sessionId } = await params;
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("Invalid JSON", 400);
     }
-    throw error;
-  }
 
-  const { id: sessionId } = await params;
+    const parsed = submitAnswerSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(
+        { error: "Bad Request", details: parsed.error.issues },
+        { status: 400 },
+      );
+    }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  const parsed = submitAnswerSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Bad Request", details: parsed.error.issues },
-      { status: 400 },
+    const requestBody: SubmitAnswerRequest = parsed.data;
+    const useCase = new AnswerQuestionUseCase(
+      new PrismaInterviewSessionRepository(),
+      new GeminiFollowUpQuestionService(),
+      new GeminiQuestionSpeechService(),
     );
-  }
 
-  const requestBody: SubmitAnswerRequest = parsed.data;
-  const useCase = new AnswerQuestionUseCase(
-    new PrismaInterviewSessionRepository(),
-    new GeminiFollowUpQuestionService(),
-    new GeminiQuestionSpeechService(),
-  );
-
-  try {
     const result = await useCase.execute({
       userId,
       sessionId,
@@ -112,31 +114,27 @@ export async function POST(
       scheduleFeedbackGeneration(sessionId);
     }
 
-    return NextResponse.json(toAnswerResponse(result), { status: 201 });
+    return Response.json(toAnswerResponse(result), { status: 201 });
   } catch (error) {
+    // 回答フロー固有の例外を先に処理し、残り（未認証・想定外）は共通ヘルパへ委譲する。
     if (
       error instanceof SessionNotFoundError ||
       error instanceof QuestionNotFoundError
     ) {
-      return NextResponse.json({ error: error.message }, { status: 404 });
+      return jsonError("Not Found", 404);
     }
     if (
       error instanceof QuestionAlreadyAnsweredError ||
       error instanceof InvalidQuestionStateError
     ) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      return jsonError("Conflict", 409);
     }
     if (error instanceof FollowUpQuestionGenerationError) {
-      return NextResponse.json(
-        { error: "質問の生成に失敗しました。もう一度お試しください。" },
-        { status: 502 },
+      return jsonError(
+        "質問の生成に失敗しました。もう一度お試しください。",
+        502,
       );
     }
-
-    console.error("AnswerQuestion failed:", error);
-    return NextResponse.json(
-      { error: "回答の処理に失敗しました。もう一度お試しください。" },
-      { status: 500 },
-    );
+    return toErrorResponse(error, "POST /api/sessions/[id]/answers");
   }
 }

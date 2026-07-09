@@ -13,6 +13,11 @@ const TYPE_TO_PRISMA: Record<QuestionType, PrismaQuestionType> = {
   [QuestionType.FOLLOW_UP]: PrismaQuestionType.FOLLOW_UP,
 };
 
+/** ドメインの QuestionType を DTO（Prisma enum）へ変換する共有ヘルパ。 */
+export function toApiQuestionType(type: QuestionType): PrismaQuestionType {
+  return TYPE_TO_PRISMA[type];
+}
+
 /** ドメインの Q&A を DTO の QuestionWithAnswer に詰め替える（enum を Prisma 側へ変換）。 */
 export function toQuestionWithAnswer(
   q: SessionQuestionWithAnswer,

@@ -1,10 +1,9 @@
-import type { FeedbackResponse } from "@/app/api/types";
-import { toAxisFeedbackResults } from "@/app/api/feedbackPresenter";
-import { SessionNotFoundError } from "@/application/feedback/errors";
+import { toFeedbackResponse } from "@/app/api/feedbackPresenter";
+import { toErrorResponse } from "@/app/api/httpError";
 import { GetFeedbackUseCase } from "@/application/feedback/GetFeedbackUseCase";
 import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaFeedbackSessionReader } from "@/infrastructure/prisma/PrismaFeedbackSessionReader";
-import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
+import { requireUser } from "@/lib/auth-guard";
 
 /**
  * GET /api/sessions/[id]/feedback
@@ -26,27 +25,8 @@ export async function GET(
     );
     const result = await useCase.execute(userId, id);
 
-    const body: FeedbackResponse =
-      result.status === "completed"
-        ? {
-            status: "completed",
-            feedbackId: result.feedback.id,
-            overallComment: result.feedback.overallComment,
-            axisFeedbacks: toAxisFeedbackResults(result.feedback.axisFeedbacks),
-          }
-        : { status: result.status };
-
-    return Response.json(body);
+    return Response.json(toFeedbackResponse(result));
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (error instanceof SessionNotFoundError) {
-      return Response.json({ error: "Not Found" }, { status: 404 });
-    }
-    // 想定外の失敗（reader/repository 例外など）。ポーリングで繰り返し叩かれるため、
-    // 診断できるようログを残してから 500 を返す。
-    console.error("GET /api/sessions/[id]/feedback failed:", error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    return toErrorResponse(error, "GET /api/sessions/[id]/feedback");
   }
 }
