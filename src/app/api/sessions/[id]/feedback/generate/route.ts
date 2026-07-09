@@ -1,10 +1,11 @@
 import { after } from "next/server";
+import { jsonError, toErrorResponse } from "@/app/api/httpError";
 import { GenerateFeedbackUseCase } from "@/application/feedback/GenerateFeedbackUseCase";
 import { GeminiFeedbackService } from "@/infrastructure/ai/GeminiFeedbackService";
 import { PrismaFeedbackContextProvider } from "@/infrastructure/prisma/PrismaFeedbackContextProvider";
 import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaFeedbackSessionReader } from "@/infrastructure/prisma/PrismaFeedbackSessionReader";
-import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
+import { requireUser } from "@/lib/auth-guard";
 
 /**
  * POST /api/sessions/[id]/feedback/generate
@@ -27,12 +28,12 @@ export async function POST(
     // 所有チェック（非所有・非存在は 404 秘匿）。
     const sessionState = await sessionReader.findOwnedSessionState(userId, id);
     if (sessionState === null) {
-      return Response.json({ error: "Not Found" }, { status: 404 });
+      return jsonError("Not Found", 404);
     }
 
     // 面接が未完了なら生成できない（409）。
     if (sessionState.endedAt === null) {
-      return Response.json({ error: "Interview not completed" }, { status: 409 });
+      return jsonError("Interview not completed", 409);
     }
 
     // 二重生成ガード（既存なら 200）。after の多重起動対策は UseCase 側でも行う。
@@ -61,10 +62,6 @@ export async function POST(
 
     return new Response(null, { status: 202 });
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    console.error("POST /api/sessions/[id]/feedback/generate failed:", error);
-    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+    return toErrorResponse(error, "POST /api/sessions/[id]/feedback/generate");
   }
 }

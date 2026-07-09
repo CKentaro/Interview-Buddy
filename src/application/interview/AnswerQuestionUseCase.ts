@@ -8,6 +8,11 @@ import {
 import type { IFollowUpQuestionService } from "@/domain/interview/ports/IFollowUpQuestionService";
 import type { IQuestionSpeechService } from "@/domain/interview/ports/IQuestionSpeechService";
 import { decideNextStep } from "@/domain/interview/services/decideNextStep";
+import { SessionNotFoundError } from "./errors";
+
+// interview 文脈で共有する SessionNotFoundError を再輸出する（このモジュール経由の
+// 既存 import 経路を維持しつつ、クラス定義は application/interview/errors.ts に一本化）。
+export { SessionNotFoundError };
 
 export type AnswerQuestionInput = {
   userId: string;
@@ -31,13 +36,6 @@ export type AnswerQuestionResult =
       speechText: string;
     }
   | { action: "complete"; answerId: string };
-
-export class SessionNotFoundError extends Error {
-  constructor(sessionId: string) {
-    super(`Session not found: ${sessionId}`);
-    this.name = "SessionNotFoundError";
-  }
-}
 
 export class QuestionNotFoundError extends Error {
   constructor(questionId: string) {

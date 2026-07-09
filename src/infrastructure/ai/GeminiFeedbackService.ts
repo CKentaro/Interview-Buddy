@@ -1,4 +1,3 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
@@ -13,13 +12,12 @@ import {
   buildAxisEvaluationPrompt,
   buildOverallCommentPrompt,
 } from "./feedbackPrompts";
-
-const MODEL = "gemini-2.5-flash-lite";
+import { geminiModel } from "./geminiModel";
 
 const axisEvaluationSchema = z.object({ comment: z.string() });
 const overallCommentSchema = z.object({ overallComment: z.string() });
 
-type GeminiModel = ReturnType<ReturnType<typeof createGoogleGenerativeAI>>;
+type GeminiModel = ReturnType<typeof geminiModel>;
 
 /**
  * IFeedbackService の Gemini 実装。
@@ -32,10 +30,7 @@ export class GeminiFeedbackService implements IFeedbackService {
   async generate(
     context: FeedbackGenerationContext,
   ): Promise<GeneratedFeedback> {
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    });
-    const model = google(MODEL);
+    const model = geminiModel();
 
     // 総評＋4軸を並行生成。1つでも失敗したら Promise.all が reject（= 何も保存されない）。
     const [overallComment, ...axisFeedbacks] = await Promise.all([

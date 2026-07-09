@@ -1,24 +1,12 @@
 import { toFeedbackResponse } from "@/app/api/feedbackPresenter";
+import { toErrorResponse } from "@/app/api/httpError";
 import { toQuestionWithAnswer } from "@/app/api/sessionPresenter";
 import type { SessionDetailResponse } from "@/app/api/types";
 import { DeleteInterviewSessionUseCase } from "@/application/interview/DeleteInterviewSessionUseCase";
 import { GetInterviewSessionDetailUseCase } from "@/application/interview/GetInterviewSessionDetailUseCase";
-import { SessionNotFoundError } from "@/application/interview/errors";
 import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
-import { requireUser, UnauthorizedError } from "@/lib/auth-guard";
-
-/** 例外 → HTTP ステータス（401 / 404 秘匿 / 500）。 */
-function toErrorResponse(error: unknown, context: string): Response {
-  if (error instanceof UnauthorizedError) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (error instanceof SessionNotFoundError) {
-    return Response.json({ error: "Not Found" }, { status: 404 });
-  }
-  console.error(`${context} failed:`, error);
-  return Response.json({ error: "Internal Server Error" }, { status: 500 });
-}
+import { requireUser } from "@/lib/auth-guard";
 
 /**
  * GET /api/sessions/[id]
