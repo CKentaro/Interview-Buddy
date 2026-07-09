@@ -1,8 +1,5 @@
-import { after } from "next/server";
+import { scheduleFeedbackGeneration } from "@/app/api/feedbackGeneration";
 import { jsonError, toErrorResponse } from "@/app/api/httpError";
-import { GenerateFeedbackUseCase } from "@/application/feedback/GenerateFeedbackUseCase";
-import { GeminiFeedbackService } from "@/infrastructure/ai/GeminiFeedbackService";
-import { PrismaFeedbackContextProvider } from "@/infrastructure/prisma/PrismaFeedbackContextProvider";
 import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaFeedbackSessionReader } from "@/infrastructure/prisma/PrismaFeedbackSessionReader";
 import { requireUser } from "@/lib/auth-guard";
@@ -42,23 +39,8 @@ export async function POST(
       return Response.json({ message: "Feedback already exists" }, { status: 200 });
     }
 
-    const useCase = new GenerateFeedbackUseCase(
-      new PrismaFeedbackContextProvider(),
-      new GeminiFeedbackService(),
-      feedbackRepository,
-    );
-
-    // 生成はレスポンス後に非同期実行。失敗は伝搬させずログのみ（ポーリングで failed 判定される）。
-    after(async () => {
-      try {
-        await useCase.execute(id);
-      } catch (error) {
-        console.error(
-          `Feedback generation failed for session ${id}:`,
-          error,
-        );
-      }
-    });
+    // 生成はレスポンス後に非同期実行（所有チェック用に生成済みの repository を再利用）。
+    scheduleFeedbackGeneration(id, feedbackRepository);
 
     return new Response(null, { status: 202 });
   } catch (error) {

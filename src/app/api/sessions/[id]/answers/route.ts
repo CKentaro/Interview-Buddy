@@ -1,6 +1,6 @@
-import { after } from "next/server";
 import { z } from "zod";
 
+import { scheduleFeedbackGeneration } from "@/app/api/feedbackGeneration";
 import { jsonError, toErrorResponse } from "@/app/api/httpError";
 import { toApiQuestionType } from "@/app/api/sessionPresenter";
 import {
@@ -12,13 +12,9 @@ import {
   QuestionNotFoundError,
   SessionNotFoundError,
 } from "@/application/interview/AnswerQuestionUseCase";
-import { GenerateFeedbackUseCase } from "@/application/feedback/GenerateFeedbackUseCase";
 import type { AnswerResponse, SubmitAnswerRequest } from "@/app/api/types";
-import { GeminiFeedbackService } from "@/infrastructure/ai/GeminiFeedbackService";
 import { GeminiFollowUpQuestionService } from "@/infrastructure/ai/GeminiFollowUpQuestionService";
 import { GeminiQuestionSpeechService } from "@/infrastructure/ai/GeminiQuestionSpeechService";
-import { PrismaFeedbackContextProvider } from "@/infrastructure/prisma/PrismaFeedbackContextProvider";
-import { PrismaFeedbackRepository } from "@/infrastructure/prisma/PrismaFeedbackRepository";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
 import { requireUser } from "@/lib/auth-guard";
 
@@ -50,26 +46,6 @@ function toAnswerResponse(result: AnswerQuestionResult): AnswerResponse {
       speechText: result.speechText,
     },
   };
-}
-
-function scheduleFeedbackGeneration(sessionId: string): void {
-  // 面接完了時にフィードバック生成をレスポンス後へ予約する（POST /feedback/generate と同じ経路）。
-  // 二重生成ガードは UseCase 側にあり、失敗は伝搬させずログのみ（ポーリングで failed 判定される）。
-  const useCase = new GenerateFeedbackUseCase(
-    new PrismaFeedbackContextProvider(),
-    new GeminiFeedbackService(),
-    new PrismaFeedbackRepository(),
-  );
-  after(async () => {
-    try {
-      await useCase.execute(sessionId);
-    } catch (error) {
-      console.error(
-        `Feedback generation failed for session ${sessionId}:`,
-        error,
-      );
-    }
-  });
 }
 
 export async function POST(

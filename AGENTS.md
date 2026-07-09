@@ -33,7 +33,7 @@ Next.js 16（App Router）/ React 19 / TypeScript / Prisma 7 / Auth.js（next-au
 - **commit / branch / PR はユーザーの明示指示があるまで実行しない。**
 
 ## 注意点（gotchas）
-- Gemini 系サービス（`GeminiFeedbackService` / `GeminiFollowUpQuestionService`）は骨格実装で `generate` が throw する。依存する前に実装状況を確認。
+- Gemini 系サービス（`GeminiFeedbackService` / `GeminiFollowUpQuestionService` / `GeminiQuestionSpeechService`）は Vercel AI SDK（`ai` の `generateText` + `Output.object`）で実装済み。モデルは `geminiModel()`（`src/infrastructure/ai/geminiModel.ts`）経由。
 - `src/generated/prisma/**` は Prisma 生成物。手編集せず `npm run db:migrate` / `prisma generate` で再生成する。
 - Next.js: 記憶に頼らず、下記 `./.next-docs` 索引を検索・参照してから作業する。
 
