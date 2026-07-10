@@ -107,6 +107,16 @@ export type AnswerResponse =
   | { answerId: string; isSessionComplete: false; nextQuestion: NextQuestionResponse }
   | { answerId: string; isSessionComplete: true; nextQuestion: null };
 
+// ─── TTS（読み上げ音声合成）───────────────────────────────────
+export type TtsRequest = {
+  text: string;
+};
+
+export type TtsResponse = {
+  /** base64 エンコードされた PCM 音声（クライアントが Web Audio でデコード）。 */
+  audio: string;
+};
+
 // UC06: フィードバック取得
 
 export type AxisFeedbackResult = {
