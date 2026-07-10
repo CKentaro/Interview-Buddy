@@ -9,6 +9,7 @@ import type {
 } from "@/app/api/types";
 import { GetInterviewHistoryUseCase } from "@/application/interview/GetInterviewHistoryUseCase";
 import { StartInterviewUseCase } from "@/application/interview/StartInterviewUseCase";
+import { GeminiOpeningSpeechService } from "@/infrastructure/ai/GeminiOpeningSpeechService";
 import { JsonQuestionBankProvider } from "@/infrastructure/questionBank/JsonQuestionBankProvider";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
 import { requireUser } from "@/lib/auth-guard";
@@ -49,6 +50,7 @@ export async function POST(request: Request): Promise<Response> {
     const useCase = new StartInterviewUseCase(
       new JsonQuestionBankProvider(),
       new PrismaInterviewSessionRepository(),
+      new GeminiOpeningSpeechService(),
     );
     const result = await useCase.execute({ userId, ...parsed.data });
 
