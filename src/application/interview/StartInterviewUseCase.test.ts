@@ -68,7 +68,7 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
         companyName: input.companyName ?? null,
         industryMajor: input.industryMajor ?? null,
         industryMinor: input.industryMinor ?? null,
-        jobMajor: input.jobTitle ?? null,
+        jobMajor: input.jobMajor ?? null,
         jobMinor: input.jobMinor ?? null,
         selectionStage: input.selectionStage ?? null,
         interviewerType: input.interviewerType ?? null,

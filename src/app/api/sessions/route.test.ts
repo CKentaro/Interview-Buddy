@@ -58,7 +58,7 @@ vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
           companyName: input.companyName ?? null,
           industryMajor: input.industryMajor ?? null,
           industryMinor: input.industryMinor ?? null,
-          jobMajor: input.jobTitle ?? null,
+          jobMajor: input.jobMajor ?? null,
           jobMinor: input.jobMinor ?? null,
           selectionStage: input.selectionStage ?? null,
           interviewerType: input.interviewerType ?? null,
@@ -150,7 +150,7 @@ describe("POST /api/sessions", () => {
     const response = await POST(
       postRequest(
         JSON.stringify({
-          jobTitle: "Web Engineer",
+          jobMajor: "Web Engineer",
           companyName: "Example Inc.",
           voiceEnabled: false,
         }),

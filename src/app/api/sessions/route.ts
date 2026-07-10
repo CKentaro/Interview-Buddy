@@ -15,10 +15,10 @@ import { requireUser } from "@/lib/auth-guard";
 
 const createSessionSchema = z
   .object({
-    jobTitle: z.string().optional(),
     companyName: z.string().optional(),
     industryMajor: z.string().optional(),
     industryMinor: z.string().optional(),
+    jobMajor: z.string().optional(),
     jobMinor: z.string().optional(),
     selectionStage: z.string().optional(),
     interviewerType: z.string().optional(),

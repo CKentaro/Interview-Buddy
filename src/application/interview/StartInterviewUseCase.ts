@@ -7,10 +7,10 @@ import { selectMainQuestions } from "@/domain/interview/services/selectMainQuest
 
 export type StartInterviewInput = {
   userId: string;
-  jobTitle?: string;
   companyName?: string;
   industryMajor?: string;
   industryMinor?: string;
+  jobMajor?: string;
   jobMinor?: string;
   selectionStage?: string;
   interviewerType?: string;
@@ -37,10 +37,10 @@ export class StartInterviewUseCase {
     const { session, firstQuestion } =
       await this.interviewSessionRepository.createSession({
         userId: input.userId,
-        jobTitle: input.jobTitle,
         companyName: input.companyName,
         industryMajor: input.industryMajor,
         industryMinor: input.industryMinor,
+        jobMajor: input.jobMajor,
         jobMinor: input.jobMinor,
         selectionStage: input.selectionStage,
         interviewerType: input.interviewerType,
