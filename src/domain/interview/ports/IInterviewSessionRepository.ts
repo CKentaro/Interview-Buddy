@@ -53,10 +53,10 @@ export type InterviewSessionDetail = {
 /** 面接セッションを新規作成するための入力。 */
 export type CreateSessionInput = {
   userId: string;
-  jobTitle?: string;
   companyName?: string;
   industryMajor?: string;
   industryMinor?: string;
+  jobMajor?: string;
   jobMinor?: string;
   selectionStage?: string;
   interviewerType?: string;

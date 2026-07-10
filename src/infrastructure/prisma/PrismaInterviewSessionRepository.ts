@@ -120,10 +120,10 @@ export class PrismaInterviewSessionRepository
       const sessionRow = await tx.interviewSession.create({
         data: {
           userId: input.userId,
-          jobMajor: input.jobTitle,
           companyName: input.companyName,
           industryMajor: input.industryMajor,
           industryMinor: input.industryMinor,
+          jobMajor: input.jobMajor,
           jobMinor: input.jobMinor,
           selectionStage: input.selectionStage,
           interviewerType: input.interviewerType,

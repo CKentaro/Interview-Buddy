@@ -61,10 +61,10 @@ export type UserMeResponse = {
 
 // ─── Session create ───────────────────────────────────────────
 export type CreateSessionRequest = {
-  jobTitle?: string;
   companyName?: string;
   industryMajor?: string;
   industryMinor?: string;
+  jobMajor?: string;
   jobMinor?: string;
   selectionStage?: string;
   interviewerType?: string;
