@@ -60,6 +60,8 @@ export type CreateSessionInput = {
   jobMinor?: string;
   selectionStage?: string;
   interviewerType?: string;
+  /** AI 音声読み上げ(TTS)を使う面接か（TTS ゲートの判定に永続化する）。 */
+  voiceEnabled?: boolean;
   selectedQuestions: SelectedQuestion[];
 };
 
@@ -129,6 +131,33 @@ export class DuplicateAnswerError extends Error {
 export interface IInterviewSessionRepository {
   /** セッションと本質問群を 1 トランザクションで作成し、最初の質問を返す。 */
   createSession(input: CreateSessionInput): Promise<CreateSessionResult>;
+
+  /**
+   * 本日(JST)の音声利用枠をアトミックに 1 つ消費する。消費できたら true、
+   * すでに本日分を使用済みなら false を返す（例外にしない）。
+   *
+   * DB の一意制約 VoiceUsage(userId, usageDate) に依存し、同時リクエスト(TOCTOU)でも
+   * 2 回目は false になる。消費はセッション作成より前に行い、中断（セッション削除）で
+   * 枠が復活しないようログはセッションと分離している。
+   *
+   * @param usageDate JST の "YYYY-MM-DD"
+   */
+  tryConsumeVoiceQuota(userId: string, usageDate: string): Promise<boolean>;
+
+  /**
+   * 指定日時以降に記録された音声(TTS)利用ログの数を数える（残回数表示用）。
+   * ログはセッション削除（中断）では消えないため、中断による枠の復活を防げる。
+   */
+  countVoiceUsageSince(userId: string, since: Date): Promise<number>;
+
+  /**
+   * 指定セッションが本人のもので、かつ音声あり(voiceEnabled=true)かを返す。
+   * TTS エンドポイントの利用可否ゲートに使う（直接叩きによる制限回避を防ぐ）。
+   */
+  isVoiceEnabledSessionForUser(
+    userId: string,
+    sessionId: string,
+  ): Promise<boolean>;
 
   /** 指定ユーザーに属するセッションを取得する。存在しなければ null。 */
   findSessionByIdForUser(

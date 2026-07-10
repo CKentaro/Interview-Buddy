@@ -127,6 +127,7 @@ export class PrismaInterviewSessionRepository
           jobMinor: input.jobMinor,
           selectionStage: input.selectionStage,
           interviewerType: input.interviewerType,
+          voiceEnabled: input.voiceEnabled ?? false,
         },
       });
 
@@ -155,6 +156,40 @@ export class PrismaInterviewSessionRepository
         firstQuestion,
       };
     });
+  }
+
+  async tryConsumeVoiceQuota(
+    userId: string,
+    usageDate: string,
+  ): Promise<boolean> {
+    // 一意制約 (userId, usageDate) により本日 2 行目の作成は P2002 で失敗する。
+    // 同時リクエスト(TOCTOU)でも「先勝ち 1 件」だけが true になる。
+    try {
+      await prisma.voiceUsage.create({ data: { userId, usageDate } });
+      return true;
+    } catch (error) {
+      if (isUniqueConstraintError(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async countVoiceUsageSince(userId: string, since: Date): Promise<number> {
+    return prisma.voiceUsage.count({
+      where: { userId, createdAt: { gte: since } },
+    });
+  }
+
+  async isVoiceEnabledSessionForUser(
+    userId: string,
+    sessionId: string,
+  ): Promise<boolean> {
+    const row = await prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId, voiceEnabled: true },
+      select: { id: true },
+    });
+    return row !== null;
   }
 
   async findSessionByIdForUser(

@@ -27,6 +27,7 @@ import type {
 } from "@/domain/interview/ports/IQuestionSpeechService";
 import {
   AnswerQuestionUseCase,
+  AnswerTooLongError,
   FollowUpQuestionGenerationError,
   QuestionAlreadyAnsweredError,
 } from "./AnswerQuestionUseCase";
@@ -109,6 +110,18 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   saveAnswerAndCompleteSessionCalls: SaveAnswerAndCompleteSessionInput[] = [];
 
   async createSession(): Promise<CreateSessionResult> {
+    throw new Error("Not used");
+  }
+
+  async tryConsumeVoiceQuota(): Promise<boolean> {
+    throw new Error("Not used");
+  }
+
+  async countVoiceUsageSince(): Promise<number> {
+    throw new Error("Not used");
+  }
+
+  async isVoiceEnabledSessionForUser(): Promise<boolean> {
     throw new Error("Not used");
   }
 
@@ -274,6 +287,22 @@ function createUseCase(
 }
 
 describe("AnswerQuestionUseCase", () => {
+  it("回答が 2000 文字を超えたら AnswerTooLongError を投げ、DB を触らない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = createUseCase(repository);
+
+    await expect(
+      useCase.execute({
+        userId: "user-1",
+        sessionId: "session-1",
+        questionId: mainQuestion.id,
+        answerText: "あ".repeat(2001),
+      }),
+    ).rejects.toBeInstanceOf(AnswerTooLongError);
+
+    expect(repository.saveAnswerCalls).toHaveLength(0);
+  });
+
   it("followup: Gemini 生成成功後に Answer と FollowUpQuestion を transaction 保存する", async () => {
     const repository = new FakeInterviewSessionRepository();
     const followUpService = new FakeFollowUpQuestionService();
