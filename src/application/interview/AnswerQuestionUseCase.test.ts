@@ -117,7 +117,7 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
     throw new Error("Not used");
   }
 
-  async countVoiceUsageSince(): Promise<number> {
+  async countVoiceUsageOnDate(): Promise<number> {
     throw new Error("Not used");
   }
 

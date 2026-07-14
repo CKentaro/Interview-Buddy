@@ -89,7 +89,7 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
     return this.voiceQuotaConsumable;
   }
 
-  async countVoiceUsageSince(): Promise<number> {
+  async countVoiceUsageOnDate(): Promise<number> {
     throw new Error("Not implemented");
   }
 

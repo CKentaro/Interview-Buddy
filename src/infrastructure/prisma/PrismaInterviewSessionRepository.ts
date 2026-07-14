@@ -175,9 +175,12 @@ export class PrismaInterviewSessionRepository
     }
   }
 
-  async countVoiceUsageSince(userId: string, since: Date): Promise<number> {
+  async countVoiceUsageOnDate(
+    userId: string,
+    usageDate: string,
+  ): Promise<number> {
     return prisma.voiceUsage.count({
-      where: { userId, createdAt: { gte: since } },
+      where: { userId, usageDate },
     });
   }
 

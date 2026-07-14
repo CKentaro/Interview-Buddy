@@ -145,10 +145,13 @@ export interface IInterviewSessionRepository {
   tryConsumeVoiceQuota(userId: string, usageDate: string): Promise<boolean>;
 
   /**
-   * 指定日時以降に記録された音声(TTS)利用ログの数を数える（残回数表示用）。
+   * 指定日(JST)の音声(TTS)利用ログの数を数える（残回数表示用）。判定キーは
+   * tryConsumeVoiceQuota と同じ usageDate なので、消費と表示の「本日」定義が一致する。
    * ログはセッション削除（中断）では消えないため、中断による枠の復活を防げる。
+   *
+   * @param usageDate JST の "YYYY-MM-DD"
    */
-  countVoiceUsageSince(userId: string, since: Date): Promise<number>;
+  countVoiceUsageOnDate(userId: string, usageDate: string): Promise<number>;
 
   /**
    * 指定セッションが本人のもので、かつ音声あり(voiceEnabled=true)かを返す。

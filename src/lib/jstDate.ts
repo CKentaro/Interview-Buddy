@@ -7,13 +7,6 @@
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-/** JST における「今日の 0 時」を UTC の Date（絶対時刻）で返す。 */
-export function startOfTodayJst(now: Date): Date {
-  const jst = new Date(now.getTime() + JST_OFFSET_MS);
-  jst.setUTCHours(0, 0, 0, 0);
-  return new Date(jst.getTime() - JST_OFFSET_MS);
-}
-
 /** JST の暦日を "YYYY-MM-DD" で返す（日次レート枠のキーに使う）。 */
 export function jstDateString(now: Date): string {
   const jst = new Date(now.getTime() + JST_OFFSET_MS);

@@ -6,7 +6,7 @@ import { GetVoiceSessionQuotaUseCase } from "./GetVoiceSessionQuotaUseCase";
 
 function repositoryWithUsage(used: number): IInterviewSessionRepository {
   return {
-    countVoiceUsageSince: vi.fn().mockResolvedValue(used),
+    countVoiceUsageOnDate: vi.fn().mockResolvedValue(used),
   } as unknown as IInterviewSessionRepository;
 }
 

@@ -1,6 +1,6 @@
 import { MAX_VOICE_SESSIONS_PER_DAY } from "@/domain/interview/model/voiceRateLimit";
 import type { IInterviewSessionRepository } from "@/domain/interview/ports/IInterviewSessionRepository";
-import { startOfTodayJst } from "@/lib/jstDate";
+import { jstDateString } from "@/lib/jstDate";
 
 /** 本日(JST)の音声ありセッションの利用状況。 */
 export type VoiceSessionQuota = {
@@ -21,9 +21,9 @@ export class GetVoiceSessionQuotaUseCase {
   constructor(private readonly repository: IInterviewSessionRepository) {}
 
   async execute(userId: string): Promise<VoiceSessionQuota> {
-    const used = await this.repository.countVoiceUsageSince(
+    const used = await this.repository.countVoiceUsageOnDate(
       userId,
-      startOfTodayJst(new Date()),
+      jstDateString(new Date()),
     );
     const remaining = Math.max(0, MAX_VOICE_SESSIONS_PER_DAY - used);
     return { limit: MAX_VOICE_SESSIONS_PER_DAY, used, remaining };
