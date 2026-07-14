@@ -7,6 +7,7 @@ import type {
   QuestionResponse,
   SessionDetailResponse,
 } from "@/app/api/types";
+import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 
 /**
  * 面接実施中の画面。没入させたいためシェル無しの (immersive) グループに置く。
@@ -45,12 +46,15 @@ function stopCurrentAudio() {
  * 失敗時は null（呼び出し側はテキスト表示にフォールバックする）。
  * 質問画面を出す前にここで音声をバッファし、表示と読み上げを揃える。
  */
-async function prepareTTS(text: string): Promise<AudioBuffer | null> {
+async function prepareTTS(
+  text: string,
+  sessionId: string,
+): Promise<AudioBuffer | null> {
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, sessionId }),
     });
     if (!res.ok) return null;
 
@@ -88,8 +92,8 @@ async function playBuffer(buf: AudioBuffer): Promise<void> {
 }
 
 /** テキストを音声化して再生する（手動の再生ボタン用）。失敗時は何もしない。 */
-async function speak(text: string): Promise<void> {
-  const buf = await prepareTTS(text);
+async function speak(text: string, sessionId: string): Promise<void> {
+  const buf = await prepareTTS(text, sessionId);
   if (buf) await playBuffer(buf);
 }
 
@@ -98,6 +102,7 @@ type StoredSession = {
   question: QuestionResponse;
   questionNumber: number;
   voiceEnabled?: boolean;
+  voiceLimited?: boolean;
 };
 
 type CurrentQuestion = {
@@ -111,6 +116,7 @@ function readStoredQuestion(sessionId: string): {
   question: CurrentQuestion;
   questionNumber: number;
   voiceEnabled: boolean;
+  voiceLimited: boolean;
 } | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem("ib-session");
@@ -125,6 +131,7 @@ function readStoredQuestion(sessionId: string): {
     },
     questionNumber: stored.questionNumber,
     voiceEnabled: stored.voiceEnabled ?? false,
+    voiceLimited: stored.voiceLimited ?? false,
   };
 }
 
@@ -136,6 +143,7 @@ export default function InterviewLivePage() {
   const [question, setQuestion] = useState<CurrentQuestion | null>(null);
   const [questionNumber, setQuestionNumber] = useState(1);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceLimited, setVoiceLimited] = useState(false);
   const [loading, setLoading] = useState(true);
   // 開始質問だけ、音声のバッファが済むまで全画面ローディングで待つ（表示と読み上げを揃える）。
   const [preparingSpeech, setPreparingSpeech] = useState(false);
@@ -157,6 +165,7 @@ export default function InterviewLivePage() {
       // （SSR では読めないため初期 state に置けず、effect での同期 setState になる）
       /* eslint-disable react-hooks/set-state-in-effect */
       setVoiceEnabled(stored.voiceEnabled);
+      setVoiceLimited(stored.voiceLimited);
       setQuestionNumber(stored.questionNumber);
       setQuestion(stored.question);
       setLoading(false);
@@ -168,6 +177,7 @@ export default function InterviewLivePage() {
       if (stored.voiceEnabled) {
         void prepareTTS(
           stored.question.speechText ?? stored.question.text,
+          sessionId,
         ).then((buf) => {
           if (cancelled) return;
           setPreparingSpeech(false);
@@ -236,7 +246,7 @@ export default function InterviewLivePage() {
       let nextBuffer: AudioBuffer | null = null;
       if (voiceEnabled) {
         stopCurrentAudio();
-        nextBuffer = await prepareTTS(next.speechText ?? next.text);
+        nextBuffer = await prepareTTS(next.speechText ?? next.text, sessionId);
       }
 
       setQuestion({
@@ -316,6 +326,12 @@ export default function InterviewLivePage() {
         {aborting ? "中断中…" : "面接を中断"}
       </button>
 
+      {voiceLimited && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs text-amber-700">
+          本日の音声利用枠（1日1回）は使用済みのため、テキストのみで進行します。
+        </div>
+      )}
+
       <div className="text-center text-xs tracking-wider text-black/40">
         QUESTION {String(questionNumber).padStart(2, "0")}
       </div>
@@ -329,7 +345,8 @@ export default function InterviewLivePage() {
           <button
             type="button"
             onClick={() =>
-              question && void speak(question.speechText ?? question.text)
+              question &&
+              void speak(question.speechText ?? question.text, sessionId)
             }
             className="rounded-full border border-black/15 px-4 py-2 text-xs text-black/60 transition hover:border-black/40"
           >
@@ -338,13 +355,19 @@ export default function InterviewLivePage() {
         </div>
       )}
 
-      <textarea
-        value={answerText}
-        onChange={(e) => setAnswerText(e.target.value)}
-        rows={6}
-        placeholder="ここに回答を入力してください…"
-        className="w-full resize-none rounded-xl border border-black/15 p-4 text-sm outline-none focus:border-black/40"
-      />
+      <div className="flex flex-col gap-1">
+        <textarea
+          value={answerText}
+          onChange={(e) => setAnswerText(e.target.value)}
+          rows={6}
+          maxLength={MAX_ANSWER_LENGTH}
+          placeholder="ここに回答を入力してください…"
+          className="w-full resize-none rounded-xl border border-black/15 p-4 text-sm outline-none focus:border-black/40"
+        />
+        <div className="text-right text-xs tabular-nums text-black/40">
+          {answerText.length} / {MAX_ANSWER_LENGTH}
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -1,3 +1,4 @@
+import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import {
@@ -51,6 +52,13 @@ export class QuestionAlreadyAnsweredError extends Error {
   }
 }
 
+export class AnswerTooLongError extends Error {
+  constructor(length: number) {
+    super(`Answer text is too long: ${length} > ${MAX_ANSWER_LENGTH}`);
+    this.name = "AnswerTooLongError";
+  }
+}
+
 export class InvalidQuestionStateError extends Error {
   constructor(message: string) {
     super(message);
@@ -80,6 +88,11 @@ export class AnswerQuestionUseCase {
   ) {}
 
   async execute(input: AnswerQuestionInput): Promise<AnswerQuestionResult> {
+    // 入力上限はドメイン不変条件。API の zod でも弾くが、UC 単体でも防御する。
+    if (input.answerText.length > MAX_ANSWER_LENGTH) {
+      throw new AnswerTooLongError(input.answerText.length);
+    }
+
     const session = await this.sessionRepository.findSessionByIdForUser(
       input.sessionId,
       input.userId,

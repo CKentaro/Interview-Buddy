@@ -41,6 +41,9 @@ class FakeQuestionBankProvider implements IQuestionBankProvider {
 
 class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   createSessionInput: CreateSessionInput | null = null;
+  /** tryConsumeVoiceQuota が返す値（true=枠を消費できた / false=使用済み）。 */
+  voiceQuotaConsumable = true;
+  tryConsumeVoiceQuotaCalls: Array<{ userId: string; usageDate: string }> = [];
 
   async createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
     this.createSessionInput = input;
@@ -76,6 +79,22 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
       },
       firstQuestion,
     };
+  }
+
+  async tryConsumeVoiceQuota(
+    userId: string,
+    usageDate: string,
+  ): Promise<boolean> {
+    this.tryConsumeVoiceQuotaCalls.push({ userId, usageDate });
+    return this.voiceQuotaConsumable;
+  }
+
+  async countVoiceUsageOnDate(): Promise<number> {
+    throw new Error("Not implemented");
+  }
+
+  async isVoiceEnabledSessionForUser(): Promise<boolean> {
+    throw new Error("Not implemented");
   }
 
   async findQuestionById(): Promise<Question | null> {
@@ -201,5 +220,57 @@ describe("StartInterviewUseCase", () => {
     });
 
     expect(result.speechText).toBe(result.firstQuestion.content);
+  });
+
+  it("音声を要求し枠を消費できれば voiceEnabled=true でセッションを作る", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.voiceQuotaConsumable = true;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      new FakeOpeningSpeechService("success"),
+    );
+
+    const result = await useCase.execute({ userId: "user-1", voiceEnabled: true });
+
+    expect(result.voiceEnabled).toBe(true);
+    expect(repository.createSessionInput?.voiceEnabled).toBe(true);
+    expect(result.speechText).toBe("生成された開始発話");
+    // 枠消費はセッション作成前に JST 日付キーで 1 回だけ試みる。
+    expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(1);
+    expect(repository.tryConsumeVoiceQuotaCalls[0]?.usageDate).toMatch(
+      /^\d{4}-\d{2}-\d{2}$/,
+    );
+  });
+
+  it("枠を消費できなければ（使用済み）voiceEnabled=false にフォールバックする", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.voiceQuotaConsumable = false;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      new FakeOpeningSpeechService("success"),
+    );
+
+    const result = await useCase.execute({ userId: "user-1", voiceEnabled: true });
+
+    expect(result.voiceEnabled).toBe(false);
+    expect(repository.createSessionInput?.voiceEnabled).toBe(false);
+    // 音声 OFF なので開始発話は生成せず、displayText のまま。
+    expect(result.speechText).toBe(result.firstQuestion.content);
+  });
+
+  it("音声を要求しなければ枠消費を試みない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      new FakeOpeningSpeechService("success"),
+    );
+
+    const result = await useCase.execute({ userId: "user-1", voiceEnabled: false });
+
+    expect(result.voiceEnabled).toBe(false);
+    expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(0);
   });
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SessionResponse } from "@/app/api/types";
+import type { SessionResponse, VoiceUsageResponse } from "@/app/api/types";
 
 const STAGES = [
   { id: "first", label: "1次面接" },
@@ -46,9 +46,29 @@ export default function InterviewSetupPage() {
     INTERVIEWERS[0]!.id,
   );
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceQuota, setVoiceQuota] = useState<VoiceUsageResponse | null>(null);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
 
+  // 本日の音声ありセッション残回数を取得する（取得失敗時は表示を出さないだけ）。
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/voice-usage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((quota: VoiceUsageResponse | null) => {
+        if (cancelled || quota === null) return;
+        setVoiceQuota(quota);
+        if (quota.remaining <= 0) setVoiceEnabled(false);
+      })
+      .catch(() => {
+        /* 残回数表示は補助情報のため、失敗しても面接開始は妨げない */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
   const valid = companyName.trim().length > 0;
 
   const handleStart = async () => {
@@ -71,13 +91,16 @@ export default function InterviewSetupPage() {
       });
       if (!res.ok) throw new Error(String(res.status));
       const session: SessionResponse = await res.json();
+      // サーバーが許可した音声可否を採用する（本日の音声枠が使用済みなら false に落ちる）。
       sessionStorage.setItem(
         "ib-session",
         JSON.stringify({
           sessionId: session.sessionId,
           question: session.firstQuestion,
           questionNumber: 1,
-          voiceEnabled,
+          voiceEnabled: session.voiceEnabled,
+          // 音声を要求したのに枠超過で無効化された場合のみ、ライブ画面で通知する。
+          voiceLimited: voiceEnabled && !session.voiceEnabled,
         }),
       );
       router.push(`/interview/${session.sessionId}/live`);
@@ -183,12 +206,24 @@ export default function InterviewSetupPage() {
             <span className="text-xs text-black/40">
               質問を音声でも読み上げます。音声入力（回答の録音）は非対応です。
             </span>
+            {voiceQuota !== null && (
+              <span
+                className={`mt-1 text-xs ${
+                  voiceExhausted ? "text-amber-600" : "text-black/40"
+                }`}
+              >
+                {voiceExhausted
+                  ? `本日の音声利用枠（1日${voiceQuota.limit}回）は使い切りました。`
+                  : `本日の残り音声セッション: ${voiceQuota.remaining} / ${voiceQuota.limit} 回`}
+              </span>
+            )}
           </span>
           <input
             type="checkbox"
             checked={voiceEnabled}
+            disabled={voiceExhausted}
             onChange={(e) => setVoiceEnabled(e.target.checked)}
-            className="h-5 w-5 accent-black"
+            className="h-5 w-5 accent-black disabled:opacity-40"
           />
         </label>
       </div>

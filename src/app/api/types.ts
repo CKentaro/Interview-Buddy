@@ -83,6 +83,11 @@ export type SessionResponse = {
   sessionId: string;
   createdAt: string;
   firstQuestion: QuestionResponse;
+  /**
+   * 実際に音声読み上げが有効化されたか。要求しても本日の音声枠が使用済みなら false。
+   * クライアントはこの値で TTS 実行可否・フォールバック通知を判断する。
+   */
+  voiceEnabled: boolean;
 };
 
 // UC03: 回答送信 & 深掘り質問生成
@@ -107,9 +112,21 @@ export type AnswerResponse =
   | { answerId: string; isSessionComplete: false; nextQuestion: NextQuestionResponse }
   | { answerId: string; isSessionComplete: true; nextQuestion: null };
 
+// ─── 音声利用枠（1日あたりの音声ありセッション残回数）─────────────
+export type VoiceUsageResponse = {
+  /** 1 日あたりの上限回数。 */
+  limit: number;
+  /** 本日すでに使った回数。 */
+  used: number;
+  /** 本日の残り回数（0 以上）。 */
+  remaining: number;
+};
+
 // ─── TTS（読み上げ音声合成）───────────────────────────────────
 export type TtsRequest = {
   text: string;
+  /** 対象セッション。音声あり(voiceEnabled=true)かつ本人のセッションのみ合成を許可する。 */
+  sessionId: string;
 };
 
 export type TtsResponse = {

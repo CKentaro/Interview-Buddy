@@ -6,12 +6,14 @@ import { toApiQuestionType } from "@/app/api/sessionPresenter";
 import {
   AnswerQuestionUseCase,
   type AnswerQuestionResult,
+  AnswerTooLongError,
   FollowUpQuestionGenerationError,
   InvalidQuestionStateError,
   QuestionAlreadyAnsweredError,
   QuestionNotFoundError,
   SessionNotFoundError,
 } from "@/application/interview/AnswerQuestionUseCase";
+import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import type { AnswerResponse, SubmitAnswerRequest } from "@/app/api/types";
 import { GeminiFollowUpQuestionService } from "@/infrastructure/ai/GeminiFollowUpQuestionService";
 import { GeminiQuestionSpeechService } from "@/infrastructure/ai/GeminiQuestionSpeechService";
@@ -21,7 +23,7 @@ import { requireUser } from "@/lib/auth-guard";
 const submitAnswerSchema = z
   .object({
     questionId: z.string().min(1),
-    answerText: z.string().min(1),
+    answerText: z.string().min(1).max(MAX_ANSWER_LENGTH),
     voiceEnabled: z.boolean().optional(),
   })
   .strict();
@@ -98,6 +100,12 @@ export async function POST(
       error instanceof QuestionNotFoundError
     ) {
       return jsonError("Not Found", 404);
+    }
+    if (error instanceof AnswerTooLongError) {
+      return jsonError(
+        `回答は${MAX_ANSWER_LENGTH}文字以内で入力してください。`,
+        400,
+      );
     }
     if (
       error instanceof QuestionAlreadyAnsweredError ||
