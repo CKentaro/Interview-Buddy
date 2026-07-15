@@ -15,11 +15,29 @@ const AXIS_META: Record<string, { caption: string; icon: React.ReactNode }> = {
   WORLDVIEW: { caption: "物事への関心の広さや深さを見ています", icon: <LcCompass /> },
 };
 
+/**
+ * 深掘り質問の displayOrder は「既存の最大 + 1」で採番されるため、displayOrder 順では
+ * すべての深掘りが主質問の後ろに並ぶ。実際に聞かれた順（主質問 → その深掘り）へ組み直す。
+ */
+function toConversationOrder(questions: QuestionWithAnswer[]): QuestionWithAnswer[] {
+  const byDisplayOrder = [...questions].sort((a, b) => a.displayOrder - b.displayOrder);
+  const followUpsByParent = new Map<string, QuestionWithAnswer[]>();
+  for (const q of byDisplayOrder) {
+    if (q.parentQuestionId === null) continue;
+    const group = followUpsByParent.get(q.parentQuestionId);
+    if (group) group.push(q);
+    else followUpsByParent.set(q.parentQuestionId, [q]);
+  }
+  const ordered = byDisplayOrder.flatMap((q) =>
+    q.parentQuestionId === null ? [q, ...(followUpsByParent.get(q.id) ?? [])] : [],
+  );
+  // 親を辿れなかった深掘りも落とさない。
+  const placed = new Set(ordered.map((q) => q.id));
+  return [...ordered, ...byDisplayOrder.filter((q) => !placed.has(q.id))];
+}
+
 function stageLabel(stage: string | null): string {
   return { first: "一次面接", second: "二次面接", final: "最終面接" }[stage ?? ""] ?? "面接練習";
-}
-function qaTypeLabel(q: QuestionWithAnswer): string {
-  return q.type === "FOLLOW_UP" ? "深掘り" : "質問";
 }
 
 function LoadingOrb({ label, sub }: { label: string; sub: string }) {
@@ -56,14 +74,12 @@ function QARow({ q, open, onToggle, last }: { q: QuestionWithAnswer; open: boole
     <div style={{ borderBottom: last ? "none" : "1px solid var(--color-divider)" }}>
       <button className="ib-row" onClick={onToggle} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", boxSizing: "border-box", padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span className="tag tag-accent" style={{ flex: "none" }}>{qaTypeLabel(q)}</span>
-          <span style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-jp)" }}>{q.content}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.7, overflow: "hidden", textOverflow: open ? "clip" : "ellipsis", whiteSpace: open ? "normal" : "nowrap", fontFamily: "var(--font-jp)" }}>{q.content}</span>
         </div>
         <LcChevronDown size={16} open={open} />
       </button>
       {open && (
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 13, color: muted(60), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>{q.content}</div>
           <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 13.5, lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "var(--font-jp)" }}>{q.answer?.content}</div>
         </div>
       )}
@@ -121,7 +137,7 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const qa = detail.questions.filter((q) => q.answer !== null);
+  const qa = toConversationOrder(detail.questions).filter((q) => q.answer !== null);
   const fb = detail.feedback;
   const dateLabel = new Date(detail.startedAt).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
   const allOpen = qa.length > 0 && qa.every((_, i) => openMap[i]);
@@ -162,14 +178,13 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       {fb.status === "completed" && (
         <>
           <section className="ib-section card elev-md" style={{ padding: 24, gap: 8, background: "var(--color-surface)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>AIコーチからの総評</div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>面接全体の総評</div>
             <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.9, fontFamily: "var(--font-jp)" }}>{fb.overallComment}</p>
           </section>
 
           <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
               <h3 style={{ margin: "0 0 4px", fontSize: 17, fontFamily: "var(--font-jp)" }}>4つの視点からの気づき</h3>
-              <p style={{ margin: 0, fontSize: 12.5, color: muted(55), fontFamily: "var(--font-jp)" }}>点数はつけません。それぞれの視点から、ことばで気づきをお伝えします。</p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {axes.map((a) => <AxisCard key={a.axis} axis={a.axis} label={a.axisLabel} comment={a.comment} />)}

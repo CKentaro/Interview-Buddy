@@ -265,7 +265,6 @@ textarea.input { min-height: 90px; resize: vertical; }
 @keyframes ib-pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 @keyframes ib-breathe { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
 @keyframes ib-breathe-ring { 0%,100% { transform: scale(1); opacity: .35; } 50% { transform: scale(1.18); opacity: 0; } }
-@keyframes ib-wave { 0%,100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
 @keyframes ib-rec-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
 @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }

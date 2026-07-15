@@ -1,11 +1,33 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { LcMic, LcArrowUp, LcAlert } from "@/components/ui/icons";
 import type { AnswerResponse, NextQuestionResponse, QuestionResponse } from "@/app/api/types";
+import { MAIN_QUESTION_COUNT } from "@/domain/interview/services/selectMainQuestions";
+import { MAX_FOLLOW_UP_DEPTH } from "@/domain/interview/services/decideNextStep";
 
 const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
+
+/** 1 セッションの総質問数 = 本質問 5 問 × (本質問 1 + 深掘り最大 2)。 */
+const TOTAL_QUESTION_COUNT = MAIN_QUESTION_COUNT * (1 + MAX_FOLLOW_UP_DEPTH);
+
+/* ── 入力フォームの寸法 ──
+   textarea は 3 行までは高さが伸び、それ以降はフォーム内スクロールに切り替える。
+   高さ計算に使うため、実際に適用する font-size / line-height / padding と必ず揃えること。 */
+const TA_FONT_SIZE = 15;
+const TA_LINE_HEIGHT = 1.5;
+const TA_PADDING_Y = 12;
+const TA_MAX_ROWS = 3;
+const TA_ROW_HEIGHT = TA_FONT_SIZE * TA_LINE_HEIGHT;
+const TA_MAX_HEIGHT = TA_ROW_HEIGHT * TA_MAX_ROWS + TA_PADDING_Y * 2;
+const COMPOSER_PADDING_Y = 8;
+/** フォーム下のヒント行（gap 込み）。 */
+const COMPOSER_HINT_SPACE = 26;
+const FOOTER_PADDING_BOTTOM = 24;
+/** 3 行まで伸びたフォームが収まる高さ。main はこの分だけ下を空けておく。 */
+const COMPOSER_MAX_SPACE =
+  TA_MAX_HEIGHT + COMPOSER_PADDING_Y * 2 + COMPOSER_HINT_SPACE + FOOTER_PADDING_BOTTOM;
 
 /* ── Types ── */
 type CurrentQuestion = {
@@ -126,25 +148,18 @@ function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-/* ── AI presence ── */
-function AIPresence({ state }: { state: "idle" | "speaking" | "thinking" }) {
+/* ── AI presence ──
+   状態は「ユーザー回答中（idle）」と「次の質問を考え中（thinking）」の 2 つだけ。 */
+function AIPresence({ state }: { state: "idle" | "thinking" }) {
   return (
     <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {state === "idle" && (
+      {state === "idle" ? (
         <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-neutral-300)" }} />
-      )}
-      {state === "thinking" && (
+      ) : (
         <>
           <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
           <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2s ease-in-out infinite" }} />
         </>
-      )}
-      {state === "speaking" && (
-        <span style={{ display: "flex", alignItems: "center", gap: 5, height: 40 }}>
-          {[0, 0.12, 0.24, 0.36, 0.48].map((d, i) => (
-            <span key={i} style={{ width: 6, height: 40, background: "var(--color-accent-500)", borderRadius: 3, display: "inline-block", animation: `ib-wave 0.9s ease-in-out ${d}s infinite` }} />
-          ))}
-        </span>
       )}
     </div>
   );
@@ -180,7 +195,6 @@ export default function LivePage() {
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
   const [sttSupported, setSttSupported] = useState(true);
-  const [orbState, setOrbState] = useState<"idle" | "speaking" | "thinking">("speaking");
   const [sending, setSending] = useState(false);
   const [showAbort, setShowAbort] = useState(false);
   const [error, setError] = useState("");
@@ -294,39 +308,51 @@ export default function LivePage() {
 
     if (!stored.voiceEnabled) {
       setStatus("ready");
-      setTimeout(() => setOrbState("idle"), 600);
       return;
     }
 
     const speechText = stored.question.speechText ?? stored.question.text;
     prepareTTS(speechText).then(async (buf) => {
       setStatus("ready");
-      setOrbState("speaking");
       if (buf) {
         await playAudioBuffer(buf);
       } else {
         speakWebSpeech(speechText);
       }
-      setTimeout(() => setOrbState("idle"), 800);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resize textarea
+  // 面接開始時と質問が切り替わったタイミングで入力欄へフォーカスを戻す
+  useEffect(() => {
+    if (status === "ready") taRef.current?.focus();
+  }, [status, question?.id]);
+
+  // Resize textarea（3 行を超えたら伸ばさず、フォーム内スクロールに任せる）
   useEffect(() => {
     if (taRef.current) {
       taRef.current.style.height = "auto";
-      taRef.current.style.height = Math.min(taRef.current.scrollHeight, 200) + "px";
+      taRef.current.style.height = Math.min(taRef.current.scrollHeight, TA_MAX_HEIGHT) + "px";
     }
   }, [text]);
 
   const canSend = text.trim().length > 0;
 
+  /**
+   * Enter で送信、Shift + Enter で改行。
+   * 日本語入力の変換確定も Enter を使うため、変換中（isComposing）は送信しない。
+   */
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (canSend && !sending) handleSend();
+  };
+
   const handleSend = async () => {
     if (sending || !question) return;
     if (recording) stopRecognition();
     setSending(true);
-    setOrbState("thinking");
     setError("");
 
     const answerText = text.trim();
@@ -349,31 +375,22 @@ export default function LivePage() {
 
       const next = data.nextQuestion as NextQuestionResponse;
       const speechText = next.speechText ?? next.text;
+      // 読み上げありのときは音声を用意し終えてから次の質問へ切り替える
+      const buf = voiceEnabled ? await prepareTTS(speechText) : null;
+
+      setQuestion(next);
+      setQuestionNumber((n) => n + 1);
+      setText("");
+      setSending(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
       if (voiceEnabled) {
-        const buf = await prepareTTS(speechText);
-        setQuestion(next);
-        setQuestionNumber((n) => n + 1);
-        setText("");
-        setOrbState("speaking");
-        setSending(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
         if (buf) await playAudioBuffer(buf);
         else speakWebSpeech(speechText);
-        setTimeout(() => setOrbState("idle"), 800);
-      } else {
-        setQuestion(next);
-        setQuestionNumber((n) => n + 1);
-        setText("");
-        setOrbState("speaking");
-        setSending(false);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        setTimeout(() => setOrbState("idle"), 800);
       }
     } catch (e) {
       console.error(e);
       setError("回答を送信できませんでした。通信状況をご確認のうえ、もう一度お試しください。");
-      setOrbState("idle");
       setSending(false);
     }
   };
@@ -392,7 +409,7 @@ export default function LivePage() {
 
   const aiStateLabel = sending
     ? "次の質問を考えています…"
-    : { idle: "あなたの回答をお待ちしています", thinking: "次の質問を考えています…", speaking: "質問を話しています" }[orbState];
+    : "あなたの回答をお待ちしています";
 
   // ── Preparing screen ──
   if (status === "preparing" || !question) {
@@ -411,87 +428,96 @@ export default function LivePage() {
   const sendActive = canSend && !sending;
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--color-bg)" }}>
+    <div style={{ position: "relative", height: "100dvh", display: "flex", flexDirection: "column", background: "var(--color-bg)" }}>
       {/* minimal top bar */}
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
+      <header style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>質問 {questionNumber} 問目</span>
-          <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 音声 {voiceEnabled ? "ON" : "OFF"}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>
+            質問 {questionNumber} / {TOTAL_QUESTION_COUNT} 問
+          </span>
+          <span aria-hidden style={{ width: 96, height: 4, borderRadius: 2, background: "var(--color-neutral-300)", overflow: "hidden" }}>
+            <span style={{ display: "block", height: "100%", width: `${(questionNumber / TOTAL_QUESTION_COUNT) * 100}%`, background: "var(--color-accent-500)", borderRadius: 2, transition: "width .4s ease" }} />
+          </span>
+          <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>
         <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12 }}>面接を中断する</button>
       </header>
 
-      {/* main */}
-      <main style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, gap: 24 }}>
-        <div style={{ height: "100%", width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-          <div style={{ flex: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
-            <h2 key={question.id} style={{ margin: 0, fontSize: 24, lineHeight: 1.6, textAlign: "center", fontFamily: "var(--font-jp)", animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
+      {/* main：フォームが伸びても再レイアウトされないよう、下にフォームの最大高ぶんを常に確保する */}
+      <main style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `24px 24px ${COMPOSER_MAX_SPACE}px`, gap: 24 }}>
+        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
+          <h2 key={question.id} style={{ margin: 0, fontSize: 24, lineHeight: 1.6, textAlign: "center", fontFamily: "var(--font-jp)", animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
 
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-              <AIPresence state={sending ? "thinking" : orbState} />
-              <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
-            </div>
-
-            {error && (
-              <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-                <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-                <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, flex: 1, fontFamily: "var(--font-jp)" }}>{error}</div>
-                <button className="btn btn-ghost" onClick={() => setError("")} style={{ fontSize: 12, flex: "none" }}>再送信</button>
-              </div>
-            )}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <AIPresence state={sending ? "thinking" : "idle"} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
           </div>
 
-          {/* composer */}
-          <div style={{ width: "100%", paddingBottom: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <div style={{ width: "100%", display: "flex", alignItems: "flex-end", gap: 6, background: "var(--color-bg)", boxShadow: "var(--shadow-md)", borderRadius: "var(--radius-lg)", padding: "8px 8px 8px 22px" }}>
-              <textarea
-                ref={taRef}
-                rows={1}
-                value={text}
-                onChange={(e) => handleManualEdit(e.target.value)}
-                placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
-                onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (sendActive) handleSend(); } }}
-                style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", resize: "none", font: "inherit", fontFamily: "var(--font-jp)", fontSize: 15, lineHeight: 1.5, padding: "12px 0", maxHeight: 200, overflowY: "auto", color: "var(--color-text)" }}
-              />
-              {sttSupported && (
-                <button
-                  type="button"
-                  onClick={toggleRecording}
-                  title={recording ? "停止" : "マイクで入力"}
-                  aria-pressed={recording}
-                  style={{ all: "unset", cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-accent-600)" : muted(55), transition: "background .15s ease" }}
-                >
-                  <LcMic size={19} />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={!sendActive}
-                style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: 44, height: 44, borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
-              >
-                {sending ? (
-                  <span style={{ width: 15, height: 15, border: "2px solid color-mix(in srgb, #fff 40%, transparent)", borderTopColor: "#fff", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
-                ) : (
-                  <LcArrowUp size={18} />
-                )}
-              </button>
+          {error && (
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, flex: 1, fontFamily: "var(--font-jp)" }}>{error}</div>
+              <button className="btn btn-ghost" onClick={() => setError("")} style={{ fontSize: 12, flex: "none" }}>再送信</button>
             </div>
-            {recording && (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-600)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
-                <span>録音中です。もう一度マイクをタップすると停止します。</span>
-              </div>
-            )}
-            {!sttSupported && (
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-                <div style={{ fontSize: 12, lineHeight: 1.6, color: muted(55), fontFamily: "var(--font-jp)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </main>
+
+      {/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */}
+      <footer style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", padding: "0 24px 24px", pointerEvents: "none" }}>
+        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
+          <div style={{ width: "100%", display: "flex", alignItems: "flex-end", gap: 6, background: "var(--color-bg)", boxShadow: "var(--shadow-md)", borderRadius: "var(--radius-lg)", padding: "8px 8px 8px 22px" }}>
+            <textarea
+              ref={taRef}
+              rows={1}
+              value={text}
+              onChange={(e) => handleManualEdit(e.target.value)}
+              placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
+              onKeyDown={handleKeyDown}
+              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", resize: "none", font: "inherit", fontFamily: "var(--font-jp)", fontSize: TA_FONT_SIZE, lineHeight: TA_LINE_HEIGHT, padding: `${TA_PADDING_Y}px 0`, maxHeight: TA_MAX_HEIGHT, overflowY: "auto", color: "var(--color-text)" }}
+            />
+            {sttSupported && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                title={recording ? "停止" : "マイクで入力"}
+                aria-pressed={recording}
+                style={{ all: "unset", cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-accent-600)" : muted(55), transition: "background .15s ease" }}
+              >
+                <LcMic size={19} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!sendActive}
+              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: 44, height: 44, borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
+            >
+              {sending ? (
+                <span style={{ width: 15, height: 15, border: "2px solid color-mix(in srgb, #fff 40%, transparent)", borderTopColor: "#fff", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+              ) : (
+                <LcArrowUp size={18} />
+              )}
+            </button>
+          </div>
+          {recording ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-600)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
+              <span>録音中です。もう一度マイクをタップすると停止します。</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: muted(40), fontFamily: "var(--font-jp)" }}>
+              Enter で送信・Shift + Enter で改行
+            </div>
+          )}
+          {!sttSupported && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: muted(55), fontFamily: "var(--font-jp)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
+            </div>
+          )}
+        </div>
+      </footer>
 
       {showAbort && <AbortModal onCancel={() => setShowAbort(false)} onConfirm={handleAbort} />}
     </div>
