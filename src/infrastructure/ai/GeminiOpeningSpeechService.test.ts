@@ -22,6 +22,7 @@ describe("GeminiOpeningSpeechService", () => {
 
     const result = await new GeminiOpeningSpeechService().generate({
       displayText: "自己紹介をお願いします。",
+      interviewerType: "neutral",
     });
 
     expect(result).toBe("こんにちは。まず…");
@@ -42,6 +43,6 @@ describe("GeminiOpeningSpeechService", () => {
     expect(prompt).toContain("自己紹介をお願いします。");
     expect(prompt).toContain("Example Inc.");
     expect(prompt).toContain("final");
-    expect(prompt).toContain("strict");
+    expect(prompt).toContain("簡潔で厳格な口調");
   });
 });

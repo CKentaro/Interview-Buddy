@@ -1,4 +1,5 @@
 import type { EvaluationAxis, QuestionType } from "@/generated/prisma/enums";
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 
 // ─── Session list ────────────────────────────────────────────
 export type SessionListItemResponse = {
@@ -67,7 +68,7 @@ export type CreateSessionRequest = {
   jobMajor?: string;
   jobMinor?: string;
   selectionStage?: string;
-  interviewerType?: string;
+  interviewerType?: InterviewerType;
   voiceEnabled?: boolean;
 };
 
@@ -125,6 +126,7 @@ export type VoiceUsageResponse = {
 // ─── TTS（読み上げ音声合成）───────────────────────────────────
 export type TtsRequest = {
   text: string;
+  interviewerType?: InterviewerType;
   /** 対象セッション。音声あり(voiceEnabled=true)かつ本人のセッションのみ合成を許可する。 */
   sessionId: string;
 };

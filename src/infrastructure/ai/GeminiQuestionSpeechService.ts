@@ -5,6 +5,7 @@ import type {
   IQuestionSpeechService,
 } from "@/domain/interview/ports/IQuestionSpeechService";
 import { geminiModel } from "./geminiModel";
+import { getInterviewerPromptInstruction } from "./interviewerPromptInstructions";
 
 const speechSchema = z.object({ speechText: z.string() });
 
@@ -18,6 +19,9 @@ A: ${input.previousAnswerText}
 
 ## 次の質問
 ${input.displayText}
+
+## 面接官タイプ別の指示
+${getInterviewerPromptInstruction(input.interviewerType)}
 
 ## 指示
 - 面接官として自然な会話口調にしてください。

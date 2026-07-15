@@ -1,5 +1,7 @@
 import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import type { Question } from "@/domain/interview/model/Question.entity";
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
+import { resolveInterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import {
   DuplicateAnswerError,
@@ -127,6 +129,7 @@ export class AnswerQuestionUseCase {
       input.sessionId,
       parentMainQuestion.displayOrder,
     );
+    const interviewerType = resolveInterviewerType(session.interviewerType);
     const decision = decideNextStep({
       answeredQuestionDepthCount: answeredQuestion.depthCount,
       nextMainQuestion,
@@ -134,9 +137,19 @@ export class AnswerQuestionUseCase {
 
     switch (decision.action) {
       case "followup":
-        return this.answerWithFollowUp(input, parentMainQuestion, answeredQuestion);
+        return this.answerWithFollowUp(
+          input,
+          parentMainQuestion,
+          answeredQuestion,
+          interviewerType,
+        );
       case "next_main":
-        return this.answerWithNextMain(input, answeredQuestion, decision.nextMainQuestion);
+        return this.answerWithNextMain(
+          input,
+          answeredQuestion,
+          decision.nextMainQuestion,
+          interviewerType,
+        );
       case "complete":
         return this.answerAndComplete(input);
     }
@@ -178,6 +191,7 @@ export class AnswerQuestionUseCase {
     input: AnswerQuestionInput,
     parentMainQuestion: Question,
     answeredQuestion: Question,
+    interviewerType: InterviewerType,
   ): Promise<AnswerQuestionResult> {
     if (parentMainQuestion.primaryAxis === null) {
       throw new InvalidQuestionStateError(
@@ -201,6 +215,7 @@ export class AnswerQuestionUseCase {
         parentMainQuestionText: parentMainQuestion.content,
         axis: parentMainQuestion.primaryAxis,
         conversationHistory,
+        interviewerType,
       });
     } catch (error) {
       throw new FollowUpQuestionGenerationError(error);
@@ -244,11 +259,13 @@ export class AnswerQuestionUseCase {
     input: AnswerQuestionInput,
     answeredQuestion: Question,
     nextMainQuestion: Question,
+    interviewerType: InterviewerType,
   ): Promise<AnswerQuestionResult> {
     const speechText = await this.generateNextMainSpeech(
       input,
       answeredQuestion,
       nextMainQuestion,
+      interviewerType,
     );
     const answer = await this.mapDuplicateAnswerError(input.questionId, () =>
       this.sessionRepository.saveAnswer(input.questionId, input.answerText),
@@ -307,6 +324,7 @@ export class AnswerQuestionUseCase {
     input: AnswerQuestionInput,
     answeredQuestion: Question,
     nextMainQuestion: Question,
+    interviewerType: InterviewerType,
   ): Promise<string> {
     if (!input.voiceEnabled || this.questionSpeechService === undefined) {
       return nextMainQuestion.content;
@@ -317,6 +335,7 @@ export class AnswerQuestionUseCase {
         displayText: nextMainQuestion.content,
         previousQuestionText: answeredQuestion.content,
         previousAnswerText: input.answerText,
+        interviewerType,
       });
       return this.speechOrFallback(generated, nextMainQuestion.content);
     } catch {

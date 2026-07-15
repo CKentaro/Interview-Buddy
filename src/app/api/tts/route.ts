@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { jsonError, toErrorResponse } from "@/app/api/httpError";
 import type { TtsResponse } from "@/app/api/types";
+import { INTERVIEWER_TYPES } from "@/domain/interview/model/InterviewerType.vo";
 import {
   SpeechSynthesisError,
   synthesizeSpeech,
@@ -16,6 +17,7 @@ const ttsSchema = z
   .object({
     text: z.string().min(1).max(MAX_TTS_TEXT_LENGTH),
     sessionId: z.string().min(1),
+    interviewerType: z.enum(INTERVIEWER_TYPES).optional(),
   })
   .strict();
 
@@ -55,7 +57,10 @@ export async function POST(request: Request): Promise<Response> {
       return jsonError("音声の利用が許可されていません。", 403);
     }
 
-    const audio = await synthesizeSpeech(parsed.data.text);
+    const audio = await synthesizeSpeech(
+      parsed.data.text,
+      parsed.data.interviewerType,
+    );
     const response: TtsResponse = { audio };
     return Response.json(response);
   } catch (error) {

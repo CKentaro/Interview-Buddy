@@ -192,6 +192,24 @@ describe("StartInterviewUseCase", () => {
     expect(result.speechText).toBe(result.firstQuestion.content);
   });
 
+  it.each(["friendly", "neutral", "strict"] as const)(
+    "%sでも本質問数は共通の5問になる",
+    async (interviewerType) => {
+      const repository = new FakeInterviewSessionRepository();
+      const useCase = new StartInterviewUseCase(
+        new FakeQuestionBankProvider(),
+        repository,
+      );
+
+      await useCase.execute({ userId: "user-1", interviewerType });
+
+      expect(repository.createSessionInput?.interviewerType).toBe(
+        interviewerType,
+      );
+      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+    },
+  );
+
   it("voiceEnabled=true のときだけ開始発話を使う", async () => {
     const useCase = new StartInterviewUseCase(
       new FakeQuestionBankProvider(),
