@@ -75,11 +75,15 @@ function getAudioContext(): AudioContext {
   return _audioCtx;
 }
 
+/** 再生中の音声（Gemini・ブラウザ読み上げの両方）を止める。onended は呼ばれない。 */
 function stopCurrentAudio() {
   if (_currentSource) {
+    // 停止でも onended は発火するため、先に外して読み上げ終了と取り違えないようにする。
+    _currentSource.onended = null;
     try { _currentSource.stop(); } catch { /* already stopped */ }
     _currentSource = null;
   }
+  if (typeof window !== "undefined") window.speechSynthesis?.cancel();
 }
 
 /**
@@ -118,8 +122,11 @@ async function prepareTTS(
   }
 }
 
-/** Play a pre-loaded AudioBuffer immediately. */
-async function playAudioBuffer(buf: AudioBuffer): Promise<void> {
+/**
+ * Play a pre-loaded AudioBuffer immediately.
+ * onEnded は読み上げが終わった時に呼ぶ。再生できなかった場合もその場で呼ぶ（口パクが残らないように）。
+ */
+async function playAudioBuffer(buf: AudioBuffer, onEnded?: () => void): Promise<void> {
   stopCurrentAudio();
   try {
     const ctx = getAudioContext();
@@ -128,10 +135,15 @@ async function playAudioBuffer(buf: AudioBuffer): Promise<void> {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
+    src.onended = () => {
+      if (_currentSource === src) _currentSource = null;
+      onEnded?.();
+    };
     src.start();
     _currentSource = src;
   } catch (e) {
     console.warn("[TTS] Play error:", e);
+    onEnded?.();
   }
 }
 
@@ -140,13 +152,29 @@ async function playAudioBuffer(buf: AudioBuffer): Promise<void> {
  * Gemini の合成に失敗したときだけ使う。音声枠の消費判定はセッション作成時に済んでおり、
  * こちらはブラウザ内で完結するため枠の抜け道にはならない（面接官ごとの声色は再現できない）。
  */
-function speakWebSpeech(text: string): void {
-  if (typeof window === "undefined" || !window.speechSynthesis) return;
+function speakWebSpeech(text: string, onEnded?: () => void): void {
+  if (typeof window === "undefined" || !window.speechSynthesis) { onEnded?.(); return; }
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text);
   utt.lang = "ja-JP";
   utt.rate = 0.92;
+  utt.onend = () => onEnded?.();
+  utt.onerror = () => onEnded?.();
   window.speechSynthesis.speak(utt);
+}
+
+/**
+ * 用意した音声（無ければブラウザ読み上げ）で質問を読み上げ、その間 setSpeaking(true) にする。
+ * 読み上げ中かどうかは面接官アバターの口パクに使うため、失敗時も必ず false へ戻す。
+ */
+async function speakQuestion(
+  buf: AudioBuffer | null,
+  fallbackText: string,
+  setSpeaking: (v: boolean) => void,
+): Promise<void> {
+  setSpeaking(true);
+  if (buf) await playAudioBuffer(buf, () => setSpeaking(false));
+  else speakWebSpeech(fallbackText, () => setSpeaking(false));
 }
 
 /* ── Speech Recognition (Web Speech API) ── */
@@ -177,18 +205,20 @@ function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
 }
 
 /* ── AI presence ──
-   状態は「ユーザー回答中（idle）」と「次の質問を考え中（thinking）」の 2 つだけ。 */
-function AIPresence({ state }: { state: "idle" | "thinking" }) {
+   状態は「ユーザー回答中（idle）」「次の質問を考え中（thinking）」「読み上げ中（speaking）」の 3 つ。
+   speaking では閉じ口の上に開き口を重ねて交互に見せ、喋っているように表示する。 */
+function AIPresence({ state }: { state: "idle" | "thinking" | "speaking" }) {
   return (
     <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {state === "idle" ? (
-        <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-neutral-300)" }} />
-      ) : (
-        <>
-          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
-          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2s ease-in-out infinite" }} />
-        </>
+      {state === "thinking" && (
+        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
       )}
+      <span aria-hidden style={{ position: "relative", width: 72, height: 72 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="ib-face" src="/interviewer/face-closed.png" alt="" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className={`ib-face ib-face-open${state === "speaking" ? " ib-face-talking" : ""}`} src="/interviewer/face-open.png" alt="" />
+      </span>
     </div>
   );
 }
@@ -222,6 +252,9 @@ export default function LivePage() {
   // 音声を要求したのに本日の枠が尽きていた場合のみ true（テキスト進行への切り替えを通知する）。
   const [voiceLimited, setVoiceLimited] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
+
+  // 質問の読み上げ中は true。面接官アバターの口パクに使う。
+  const [speaking, setSpeaking] = useState(false);
 
   const [text, setText] = useState("");
   const [recording, setRecording] = useState(false);
@@ -355,12 +388,12 @@ export default function LivePage() {
       void prepareTTS(speechText, sessionId, storedType).then(async (buf) => {
         if (cancelled) return;
         setStatus("ready");
-        if (buf) await playAudioBuffer(buf);
-        else speakWebSpeech(speechText);
+        await speakQuestion(buf, speechText, setSpeaking);
       });
       return () => {
         cancelled = true;
         stopCurrentAudio();
+        setSpeaking(false);
       };
     }
 
@@ -440,6 +473,7 @@ export default function LivePage() {
 
       if (data.isSessionComplete) {
         stopCurrentAudio();
+        setSpeaking(false);
         sessionStorage.removeItem("ib-session");
         router.push(`/interview/${sessionId}/feedback`);
         return;
@@ -465,10 +499,7 @@ export default function LivePage() {
       }));
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      if (voiceEnabled) {
-        if (buf) await playAudioBuffer(buf);
-        else speakWebSpeech(speechText);
-      }
+      if (voiceEnabled) await speakQuestion(buf, speechText, setSpeaking);
     } catch (e) {
       console.error(e);
       setError("回答を送信できませんでした。通信状況をご確認のうえ、もう一度お試しください。");
@@ -483,6 +514,7 @@ export default function LivePage() {
     if (recording) stopRecognition();
     setAborting(true);
     stopCurrentAudio();
+    setSpeaking(false);
     try {
       const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`${res.status}`);
@@ -496,9 +528,12 @@ export default function LivePage() {
     }
   };
 
+  const aiState = sending ? "thinking" : speaking ? "speaking" : "idle";
   const aiStateLabel = sending
     ? "次の質問を考えています…"
-    : "あなたの回答をお待ちしています";
+    : speaking
+      ? "面接官が質問しています…"
+      : "あなたの回答をお待ちしています";
 
   // ── Preparing screen ──
   if (status === "preparing" || !question) {
@@ -548,7 +583,7 @@ export default function LivePage() {
           <h2 key={question.id} style={{ margin: 0, fontSize: 24, lineHeight: 1.6, textAlign: "center", fontFamily: "var(--font-jp)", animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-            <AIPresence state={sending ? "thinking" : "idle"} />
+            <AIPresence state={aiState} />
             <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
           </div>
 

@@ -293,9 +293,17 @@ textarea.input { min-height: 90px; resize: vertical; }
 .ib-session-card .ib-session-chevron { transition: transform .16s ease; }
 .ib-session-card:hover .ib-session-chevron { transform: translateX(2px); }
 
+/* ── 面接官アバター ───────────────────────────────────────────────────── */
+.ib-face { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; }
+/* 開き口は常に読み込んでおき（初回の口パクで画像が抜けないように）、
+   読み上げ中だけ表示を切り替えて喋って見せる。アニメーションは opacity: 0 に優先する。 */
+.ib-face-open { opacity: 0; }
+.ib-face-open.ib-face-talking { animation: ib-mouth .34s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .ib-session-card, .ib-session-card .ib-session-chevron { transition: none; }
   .ib-session-card:hover { transform: none; }
+  .ib-face-open.ib-face-talking { animation: none; }
 }
 
 /* Centered panel for the loading / empty states of a list */
@@ -329,6 +337,8 @@ textarea.input { min-height: 90px; resize: vertical; }
 @keyframes ib-breathe { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
 @keyframes ib-breathe-ring { 0%,100% { transform: scale(1); opacity: .35; } 50% { transform: scale(1.18); opacity: 0; } }
 @keyframes ib-rec-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+/* 面接官の口パク：閉じ口の上に開き口を重ね、その表示を切り替える */
+@keyframes ib-mouth { 0%,49.99% { opacity: 0; } 50%,100% { opacity: 1; } }
 @keyframes shake { 0%,100% { transform: translateX(0); } 20%,60% { transform: translateX(-4px); } 40%,80% { transform: translateX(4px); } }
 @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes ripple { from { transform: scale(0.8); opacity: 0.55; } to { transform: scale(2.2); opacity: 0; } }
