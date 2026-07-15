@@ -272,6 +272,41 @@ textarea.input { min-height: 90px; resize: vertical; }
 .ib-choice:hover { border-color: color-mix(in srgb, var(--color-text) 35%, transparent); }
 .ib-choice.ib-choice-active { border-color: var(--color-accent); background: var(--color-accent-100); }
 
+/* ── Session list: independent cards, no dividers ─────────────────────── */
+.ib-card-list { display: flex; flex-direction: column; gap: 10px; }
+
+.ib-session-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.ib-session-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+.ib-session-card:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
+.ib-session-card .ib-session-chevron { transition: transform .16s ease; }
+.ib-session-card:hover .ib-session-chevron { transform: translateX(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ib-session-card, .ib-session-card .ib-session-chevron { transition: none; }
+  .ib-session-card:hover { transform: none; }
+}
+
+/* Centered panel for the loading / empty states of a list */
+.ib-list-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; text-align: center;
+  padding: 56px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
 .ib-page-btn {
   min-width: 32px; height: 32px; padding: 0 6px; border-radius: var(--radius-sm);
   border: 1px solid var(--color-divider); background: var(--color-bg);
