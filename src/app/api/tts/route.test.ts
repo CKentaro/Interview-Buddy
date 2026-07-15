@@ -21,6 +21,7 @@ const routeMocks = vi.hoisted(() => {
     requireUser: vi.fn<() => Promise<string>>(),
     synthesizeSpeech:
       vi.fn<(text: string, interviewerType?: string) => Promise<string>>(),
+    isVoiceEnabledSessionForUser: vi.fn<() => Promise<boolean>>(),
   };
 });
 
@@ -34,11 +35,22 @@ vi.mock("@/infrastructure/ai/GeminiSpeechSynthesizer", () => ({
   synthesizeSpeech: routeMocks.synthesizeSpeech,
 }));
 
-function postRequest(body: string): Request {
+vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
+  PrismaInterviewSessionRepository: class PrismaInterviewSessionRepository {
+    isVoiceEnabledSessionForUser = routeMocks.isVoiceEnabledSessionForUser;
+  },
+}));
+
+/** text と sessionId を持つ既定の正常ボディ。 */
+function body(overrides: Record<string, unknown> = {}): string {
+  return JSON.stringify({ text: "hi", sessionId: "session-1", ...overrides });
+}
+
+function postRequest(raw: string): Request {
   return new Request("http://localhost/api/tts", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body,
+    body: raw,
   });
 }
 
@@ -47,12 +59,14 @@ describe("POST /api/tts", () => {
     routeMocks.requireUser.mockReset();
     routeMocks.requireUser.mockResolvedValue("user-1");
     routeMocks.synthesizeSpeech.mockReset();
+    routeMocks.isVoiceEnabledSessionForUser.mockReset();
+    routeMocks.isVoiceEnabledSessionForUser.mockResolvedValue(true);
   });
 
   it("未認証なら 401 を返す", async () => {
     routeMocks.requireUser.mockRejectedValue(new routeMocks.UnauthorizedError());
 
-    const response = await POST(postRequest(JSON.stringify({ text: "hi" })));
+    const response = await POST(postRequest(body()));
 
     expect(response.status).toBe(401);
     expect(routeMocks.synthesizeSpeech).not.toHaveBeenCalled();
@@ -66,18 +80,34 @@ describe("POST /api/tts", () => {
   });
 
   it("text が空ならバリデーションエラー 400 を返す", async () => {
-    const response = await POST(postRequest(JSON.stringify({ text: "" })));
+    const response = await POST(postRequest(body({ text: "" })));
 
     expect(response.status).toBe(400);
+    expect(routeMocks.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+
+  it("sessionId が無ければバリデーションエラー 400 を返す", async () => {
+    const response = await POST(
+      postRequest(JSON.stringify({ text: "こんにちは" })),
+    );
+
+    expect(response.status).toBe(400);
+    expect(routeMocks.synthesizeSpeech).not.toHaveBeenCalled();
+  });
+
+  it("音声ありセッションでなければ 403 を返す（合成しない）", async () => {
+    routeMocks.isVoiceEnabledSessionForUser.mockResolvedValue(false);
+
+    const response = await POST(postRequest(body({ text: "こんにちは" })));
+
+    expect(response.status).toBe(403);
     expect(routeMocks.synthesizeSpeech).not.toHaveBeenCalled();
   });
 
   it("合成に成功すれば base64 audio を返す", async () => {
     routeMocks.synthesizeSpeech.mockResolvedValue("BASE64PCM");
 
-    const response = await POST(
-      postRequest(JSON.stringify({ text: "こんにちは" })),
-    );
+    const response = await POST(postRequest(body({ text: "こんにちは" })));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ audio: "BASE64PCM" });
@@ -85,15 +115,17 @@ describe("POST /api/tts", () => {
       "こんにちは",
       undefined,
     );
+    expect(routeMocks.isVoiceEnabledSessionForUser).toHaveBeenCalledWith(
+      "user-1",
+      "session-1",
+    );
   });
 
   it("面接官タイプを音声合成へ渡す", async () => {
     routeMocks.synthesizeSpeech.mockResolvedValue("BASE64PCM");
 
     const response = await POST(
-      postRequest(
-        JSON.stringify({ text: "質問です", interviewerType: "strict" }),
-      ),
+      postRequest(body({ text: "質問です", interviewerType: "strict" })),
     );
 
     expect(response.status).toBe(200);
@@ -105,9 +137,7 @@ describe("POST /api/tts", () => {
 
   it("未対応の面接官タイプなら400を返す", async () => {
     const response = await POST(
-      postRequest(
-        JSON.stringify({ text: "質問です", interviewerType: "unknown" }),
-      ),
+      postRequest(body({ text: "質問です", interviewerType: "unknown" })),
     );
 
     expect(response.status).toBe(400);
@@ -119,7 +149,7 @@ describe("POST /api/tts", () => {
       new routeMocks.SpeechSynthesisError("boom"),
     );
 
-    const response = await POST(postRequest(JSON.stringify({ text: "hi" })));
+    const response = await POST(postRequest(body()));
 
     expect(response.status).toBe(502);
     await expect(response.json()).resolves.toEqual({

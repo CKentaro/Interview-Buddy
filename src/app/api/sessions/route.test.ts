@@ -21,6 +21,7 @@ const routeMocks = vi.hoisted(() => {
     bank: undefined as unknown,
     createSessionInputs: [] as CreateSessionInput[],
     completedSessions: [] as SessionSummary[],
+    voiceQuotaConsumable: true,
     requireUser: vi.fn<() => Promise<string>>(),
   };
 });
@@ -76,6 +77,10 @@ vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
       };
     }
 
+    async tryConsumeVoiceQuota(): Promise<boolean> {
+      return routeMocks.voiceQuotaConsumable;
+    }
+
     async findCompletedByUser(): Promise<SessionSummary[]> {
       return routeMocks.completedSessions;
     }
@@ -113,6 +118,7 @@ describe("POST /api/sessions", () => {
   beforeEach(() => {
     routeMocks.bank = createBank();
     routeMocks.createSessionInputs.length = 0;
+    routeMocks.voiceQuotaConsumable = true;
     routeMocks.requireUser.mockReset();
     routeMocks.requireUser.mockResolvedValue("user-1");
   });
@@ -179,6 +185,7 @@ describe("POST /api/sessions", () => {
     await expect(response.json()).resolves.toEqual({
       sessionId: "session-1",
       createdAt: "2026-07-07T00:00:00.000Z",
+      voiceEnabled: false,
       firstQuestion: {
         id: "question-1",
         type: "MAIN",
@@ -186,6 +193,22 @@ describe("POST /api/sessions", () => {
         speechText: expect.any(String),
         parentQuestionId: null,
       },
+    });
+  });
+
+  it("音声要求でも枠を消費できなければ voiceEnabled=false で作成する", async () => {
+    routeMocks.voiceQuotaConsumable = false;
+
+    const response = await POST(
+      postRequest(
+        JSON.stringify({ companyName: "Example Inc.", voiceEnabled: true }),
+      ),
+    );
+
+    expect(response.status).toBe(201);
+    expect(routeMocks.createSessionInputs[0]?.voiceEnabled).toBe(false);
+    await expect(response.json()).resolves.toMatchObject({
+      voiceEnabled: false,
     });
   });
 });

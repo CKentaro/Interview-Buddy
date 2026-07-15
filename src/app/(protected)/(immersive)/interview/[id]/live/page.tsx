@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type {
   AnswerResponse,
   QuestionResponse,
   SessionDetailResponse,
 } from "@/app/api/types";
+import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import {
   DEFAULT_INTERVIEWER_TYPE,
   resolveInterviewerType,
@@ -18,7 +19,9 @@ import {
  * 認証は親の (protected)/layout.tsx で他の要ログイン画面とまとめて保護される。
  *
  * 簡易実装: voiceEnabled の時のみ質問を TTS(/api/tts) で読み上げる。
- * 音声入力(STT)は非対応で、回答は常にテキスト入力で進める。
+ * 音声入力(STT)は Web Speech API（ブラウザ内）で常時利用可能。voiceEnabled(TTS 出力)
+ * とは直交し、非対応ブラウザ(Firefox 等)ではマイクを無効化してテキスト入力に誘導する。
+ * STT はクライアント完結・無料のためサーバゲート/枠消費は無い。
  */
 
 // Gemini TTS が返す PCM の仕様（サンプルレート）。
@@ -52,13 +55,14 @@ function stopCurrentAudio() {
  */
 async function prepareTTS(
   text: string,
+  sessionId: string,
   interviewerType: InterviewerType,
 ): Promise<AudioBuffer | null> {
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, interviewerType }),
+      body: JSON.stringify({ text, sessionId, interviewerType }),
     });
     if (!res.ok) return null;
 
@@ -98,10 +102,42 @@ async function playBuffer(buf: AudioBuffer): Promise<void> {
 /** テキストを音声化して再生する（手動の再生ボタン用）。失敗時は何もしない。 */
 async function speak(
   text: string,
+  sessionId: string,
   interviewerType: InterviewerType,
 ): Promise<void> {
-  const buf = await prepareTTS(text, interviewerType);
+  const buf = await prepareTTS(text, sessionId, interviewerType);
   if (buf) await playBuffer(buf);
+}
+
+/* ── 音声入力(STT): Web Speech API ──
+ * ブラウザ内で完結する音声認識。標準の型定義が無いため最小限を自前で宣言する。 */
+type SpeechResultAlt = { transcript: string };
+type SpeechResult = { isFinal: boolean; 0: SpeechResultAlt; length: number };
+type SpeechResultList = { length: number; [i: number]: SpeechResult };
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: SpeechResultList;
+};
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+};
+
+/** ブラウザの SpeechRecognition コンストラクタを返す（非対応なら null）。 */
+function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 type StoredSession = {
@@ -110,6 +146,7 @@ type StoredSession = {
   questionNumber: number;
   voiceEnabled?: boolean;
   interviewerType?: string;
+  voiceLimited?: boolean;
 };
 
 type CurrentQuestion = {
@@ -124,6 +161,7 @@ function readStoredQuestion(sessionId: string): {
   questionNumber: number;
   voiceEnabled: boolean;
   interviewerType: InterviewerType;
+  voiceLimited: boolean;
 } | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem("ib-session");
@@ -139,6 +177,7 @@ function readStoredQuestion(sessionId: string): {
     questionNumber: stored.questionNumber,
     voiceEnabled: stored.voiceEnabled ?? false,
     interviewerType: resolveInterviewerType(stored.interviewerType),
+    voiceLimited: stored.voiceLimited ?? false,
   };
 }
 
@@ -153,6 +192,7 @@ export default function InterviewLivePage() {
   const [interviewerType, setInterviewerType] = useState<InterviewerType>(
     DEFAULT_INTERVIEWER_TYPE,
   );
+  const [voiceLimited, setVoiceLimited] = useState(false);
   const [loading, setLoading] = useState(true);
   // 開始質問だけ、音声のバッファが済むまで全画面ローディングで待つ（表示と読み上げを揃える）。
   const [preparingSpeech, setPreparingSpeech] = useState(false);
@@ -160,6 +200,133 @@ export default function InterviewLivePage() {
   const [submitting, setSubmitting] = useState(false);
   const [aborting, setAborting] = useState(false);
   const [error, setError] = useState("");
+
+  // ── 音声入力(STT) ──
+  const [recording, setRecording] = useState(false);
+  const [sttSupported, setSttSupported] = useState(true);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // 確定済みテキスト（既存入力 + isFinal な認識結果）。暫定結果はこの上に重ねて
+  // ライブプレビューする。
+  const committedTextRef = useRef("");
+  // 意図としての録音状態。ブラウザが勝手に onend した際の自動再開判定に使う。
+  const listeningRef = useRef(false);
+  // 口述中にユーザーが手入力で編集した間、在庫フレーズの再挿入を防ぐために結果を無視する。
+  const suppressResultRef = useRef(false);
+  const resyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // マウント時に対応可否を判定し、アンマウント時に認識を止める。
+  // window 依存の判定は SSR では出せず初期 state に置けないため、mount 後に一度だけ設定する。
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSttSupported(getSpeechRecognitionCtor() !== null);
+    return () => {
+      listeningRef.current = false;
+      if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  const stopRecognition = () => {
+    listeningRef.current = false;
+    suppressResultRef.current = false;
+    if (resyncTimerRef.current) {
+      clearTimeout(resyncTimerRef.current);
+      resyncTimerRef.current = null;
+    }
+    recognitionRef.current?.stop();
+    setRecording(false);
+  };
+
+  // 口述中の手入力に追随する。ユーザーの編集値を確定テキストの土台にし、
+  // エンジンの在庫フレーズを破棄してから認識を再開し、以降の発話を綺麗に続ける。
+  const handleManualEdit = (value: string) => {
+    setAnswerText(value.slice(0, MAX_ANSWER_LENGTH));
+    if (!recording) return;
+    committedTextRef.current = value.slice(0, MAX_ANSWER_LENGTH);
+    suppressResultRef.current = true;
+    if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+    resyncTimerRef.current = setTimeout(() => {
+      resyncTimerRef.current = null;
+      suppressResultRef.current = false;
+      // abort() は final を出さずに在庫フレーズを捨てる。onend が
+      // listeningRef=true のまま新セッションを自動再開する。
+      if (listeningRef.current) recognitionRef.current?.abort();
+    }, 350);
+  };
+
+  const startRecognition = () => {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) {
+      setSttSupported(false);
+      return;
+    }
+
+    const rec = new Ctor();
+    rec.lang = "ja-JP";
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    // 既存入力の後ろから追記を始める。
+    committedTextRef.current = answerText
+      ? answerText.replace(/\s+$/, "") + " "
+      : "";
+
+    rec.onresult = (e) => {
+      // 手入力の編集中は結果を無視（消した文字を暫定フレーズが再挿入するのを防ぐ）。
+      if (suppressResultRef.current) return;
+      let interim = "";
+      let final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (!r) continue;
+        if (r.isFinal) final += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      if (final) {
+        committedTextRef.current = (committedTextRef.current + final).slice(
+          0,
+          MAX_ANSWER_LENGTH,
+        );
+      }
+      setAnswerText(
+        (committedTextRef.current + interim).slice(0, MAX_ANSWER_LENGTH),
+      );
+    };
+    rec.onerror = (ev) => {
+      if (ev.error !== "no-speech" && ev.error !== "aborted") {
+        listeningRef.current = false;
+        setRecording(false);
+      }
+    };
+    rec.onend = () => {
+      // ブラウザが自発的に終了することがある。意図が続いていれば再開する。
+      if (listeningRef.current) {
+        try {
+          rec.start();
+        } catch {
+          listeningRef.current = false;
+          setRecording(false);
+        }
+      } else {
+        setRecording(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+    listeningRef.current = true;
+    try {
+      rec.start();
+      setRecording(true);
+    } catch {
+      listeningRef.current = false;
+      setRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (recording) stopRecognition();
+    else startRecognition();
+  };
 
   // マウント後に sessionStorage を読み、無ければセッション詳細から復元する。
   // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の
@@ -175,6 +342,7 @@ export default function InterviewLivePage() {
       /* eslint-disable react-hooks/set-state-in-effect */
       setVoiceEnabled(stored.voiceEnabled);
       setInterviewerType(stored.interviewerType);
+      setVoiceLimited(stored.voiceLimited);
       setQuestionNumber(stored.questionNumber);
       setQuestion(stored.question);
       setLoading(false);
@@ -186,6 +354,7 @@ export default function InterviewLivePage() {
       if (stored.voiceEnabled) {
         void prepareTTS(
           stored.question.speechText ?? stored.question.text,
+          sessionId,
           stored.interviewerType,
         ).then((buf) => {
           if (cancelled) return;
@@ -230,6 +399,7 @@ export default function InterviewLivePage() {
 
   const handleSubmit = async () => {
     if (!question || !answerText.trim()) return;
+    if (recording) stopRecognition();
     setSubmitting(true);
     setError("");
     try {
@@ -259,6 +429,7 @@ export default function InterviewLivePage() {
         stopCurrentAudio();
         nextBuffer = await prepareTTS(
           next.speechText ?? next.text,
+          sessionId,
           interviewerType,
         );
       }
@@ -278,6 +449,7 @@ export default function InterviewLivePage() {
           questionNumber: questionNumber + 1,
           voiceEnabled,
           interviewerType,
+          voiceLimited,
         }),
       );
       if (nextBuffer) void playBuffer(nextBuffer);
@@ -300,6 +472,7 @@ export default function InterviewLivePage() {
     ) {
       return;
     }
+    if (recording) stopRecognition();
     setAborting(true);
     setError("");
     try {
@@ -341,6 +514,12 @@ export default function InterviewLivePage() {
         {aborting ? "中断中…" : "面接を中断"}
       </button>
 
+      {voiceLimited && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs text-amber-700">
+          本日の音声利用枠（1日1回）は使用済みのため、テキストのみで進行します。
+        </div>
+      )}
+
       <div className="text-center text-xs tracking-wider text-black/40">
         QUESTION {String(questionNumber).padStart(2, "0")}
       </div>
@@ -357,6 +536,7 @@ export default function InterviewLivePage() {
               question &&
               void speak(
                 question.speechText ?? question.text,
+                sessionId,
                 interviewerType,
               )
             }
@@ -367,13 +547,40 @@ export default function InterviewLivePage() {
         </div>
       )}
 
-      <textarea
-        value={answerText}
-        onChange={(e) => setAnswerText(e.target.value)}
-        rows={6}
-        placeholder="ここに回答を入力してください…"
-        className="w-full resize-none rounded-xl border border-black/15 p-4 text-sm outline-none focus:border-black/40"
-      />
+      <div className="flex flex-col gap-1">
+        <textarea
+          value={answerText}
+          onChange={(e) => handleManualEdit(e.target.value)}
+          rows={6}
+          maxLength={MAX_ANSWER_LENGTH}
+          placeholder="ここに回答を入力、またはマイクで話してください…"
+          className="w-full resize-none rounded-xl border border-black/15 p-4 text-sm outline-none focus:border-black/40"
+        />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleRecording}
+              disabled={!sttSupported}
+              className={`rounded-full border px-4 py-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                recording
+                  ? "border-red-300 bg-red-50 text-red-600"
+                  : "border-black/15 text-black/60 hover:border-black/40"
+              }`}
+            >
+              {recording ? "● 録音中 — 停止" : "🎤 マイクで入力"}
+            </button>
+            {!sttSupported && (
+              <span className="text-xs text-black/40">
+                このブラウザは音声入力に非対応です。テキストで入力してください。
+              </span>
+            )}
+          </div>
+          <div className="text-right text-xs tabular-nums text-black/40">
+            {answerText.length} / {MAX_ANSWER_LENGTH}
+          </div>
+        </div>
+      </div>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

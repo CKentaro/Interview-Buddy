@@ -66,6 +66,7 @@ export async function POST(request: Request): Promise<Response> {
       sessionId: result.session.id,
       createdAt: result.session.startedAt.toISOString(),
       firstQuestion,
+      voiceEnabled: result.voiceEnabled,
     };
 
     return Response.json(response, { status: 201 });

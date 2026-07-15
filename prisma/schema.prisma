@@ -41,6 +41,7 @@ model User {
 
   // アプリ固有リレーション
   interviewSessions InterviewSession[]
+  voiceUsages       VoiceUsage[]
 }
 
 model Account {
@@ -84,6 +85,9 @@ model InterviewSession {
   id              String     @id @default(cuid())
   startedAt       DateTime   @default(now())
   endedAt         DateTime?
+  // AI 音声読み上げ(TTS)を使う面接か。1 ユーザー 1 日 1 セッションのレート制限は
+  // この列（voiceEnabled=true かつ本日開始のセッション数）で判定する。
+  voiceEnabled    Boolean    @default(false)
   companyName     String?
   industryMajor   String?
   industryMinor   String?
@@ -110,6 +114,24 @@ model Question {
   parentQuestion    Question?        @relation("QuestionFollowUps", fields: [parentQuestionId], references: [id], onDelete: Cascade)
   followUpQuestions Question[]       @relation("QuestionFollowUps")
   answer            Answer?
+}
+
+// AI 音声(TTS)の利用ログ。音声あり面接を開始するたびに 1 行記録する。
+// InterviewSession とは意図的に無関係にし、面接を中断（セッション削除）しても
+// 消えないようにする（中断でレート枠が復活する抜け穴を塞ぐ）。
+//
+// usageDate は JST の "YYYY-MM-DD"。@@unique([userId, usageDate]) により
+// 1 ユーザー 1 日 1 行しか作れず、同時リクエスト(TOCTOU)でも DB が 2 回目の
+// 消費を弾く（＝実質のレート上限は 1/日）。上限を増やす場合はこの制約の見直しが必要。
+model VoiceUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageDate String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, usageDate])
+  @@index([userId, createdAt])
 }
 
 model Answer {
