@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SessionDetailResponse, QuestionWithAnswer } from "@/app/api/types";
 import { LcRepeat, LcScale, LcEye, LcCompass, LcChevronDown, LcAlert } from "@/components/ui/icons";
+import { FEEDBACK_TIMEOUT_MS } from "@/domain/feedback/services/determineFeedbackStatus";
 import { interviewerTypeLabel } from "@/domain/interview/model/InterviewerType.vo";
 
 const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
@@ -93,24 +94,32 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
   const [notFound, setNotFound] = useState(false);
   const [openMap, setOpenMap] = useState<Record<number, boolean>>({});
   const [retry, setRetry] = useState(0);
+  // サーバーの failed 判定は endedAt を起点にするため、履歴詳細（endedAt が古い）から
+  // 再生成しても即 failed が返る。起動した生成の完了を待っている間はこちらを優先する。
+  const [awaitingGeneration, setAwaitingGeneration] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let deadline: number | null = null;
 
     async function load(triggerGeneration: boolean) {
       if (triggerGeneration) {
         // Self-healing: (re)trigger generation. Idempotent server-side.
-        await fetch(`/api/sessions/${sessionId}/feedback/generate`, { method: "POST" }).catch(() => {});
+        const started = await fetch(`/api/sessions/${sessionId}/feedback/generate`, { method: "POST" }).catch(() => null);
         if (cancelled) return;
+        // 202 = 生成を開始した。完了までの猶予を計り、その間は failed を表示しない。
+        if (started?.status === 202) deadline = Date.now() + FEEDBACK_TIMEOUT_MS;
       }
       const res = await fetch(`/api/sessions/${sessionId}`);
       if (cancelled) return;
       if (!res.ok) { setNotFound(true); return; }
       const data: SessionDetailResponse = await res.json();
       if (cancelled) return;
+      const awaiting = deadline !== null && Date.now() < deadline && data.feedback.status !== "completed";
+      setAwaitingGeneration(awaiting);
       setDetail(data);
-      if (data.feedback.status === "generating") {
+      if (data.feedback.status === "generating" || awaiting) {
         timerRef.current = setTimeout(() => load(false), POLL_INTERVAL_MS);
       }
     }
@@ -142,6 +151,8 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
   const fb = detail.feedback;
   const dateLabel = new Date(detail.startedAt).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" });
   const allOpen = qa.length > 0 && qa.every((_, i) => openMap[i]);
+  // 生成を起動して待っている間は、サーバーが failed と言っても「生成中」を見せ続ける。
+  const showGenerating = fb.status === "generating" || (fb.status === "failed" && awaitingGeneration);
 
   const axes = fb.status === "completed"
     ? [...fb.axisFeedbacks].sort((a, b) => AXIS_ORDER.indexOf(a.axis) - AXIS_ORDER.indexOf(b.axis))
@@ -163,11 +174,11 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       </section>
 
       {/* feedback */}
-      {fb.status === "generating" && (
+      {showGenerating && (
         <LoadingOrb label="気づきをことばにまとめています…" sub="今日のお話をふまえて、4つの視点からフィードバックを準備しています。もう少しお待ちください。" />
       )}
 
-      {fb.status === "failed" && (
+      {fb.status === "failed" && !awaitingGeneration && (
         <div className="ib-section card elev-sm" style={{ padding: 24, gap: 12, alignItems: "center", textAlign: "center" }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-accent-100)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-accent-700)" }}><LcAlert size={20} /></div>
           <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-jp)" }}>フィードバックを準備できませんでした</div>
