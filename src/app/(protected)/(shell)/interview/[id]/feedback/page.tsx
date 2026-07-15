@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { SessionDetailView } from "@/components/interview/SessionDetailView";
 
 export default async function FeedbackPage({
@@ -8,16 +9,15 @@ export default async function FeedbackPage({
 }) {
   const { id } = await params;
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
-        <div className="text-xs tracking-wider text-black/40">
-          面接お疲れさまでした
-        </div>
-        <Link href="/home" className="text-sm text-black/60 underline">
-          ホームへ戻る
-        </Link>
-      </div>
+    <main style={{ maxWidth: 920, margin: "0 auto", padding: "44px 32px 56px", display: "flex", flexDirection: "column", gap: 24 }}>
+      <PageHeader title="練習の振り返り" subtitle="面接練習のフィードバック" />
+
       <SessionDetailView sessionId={id} />
-    </div>
+
+      <section className="ib-section" style={{ display: "flex", gap: 12, paddingTop: 2 }}>
+        <Link href="/home" className="btn btn-secondary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>ホームに戻る</Link>
+        <Link href="/interview/setup" className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>もう一度練習する</Link>
+      </section>
+    </main>
   );
 }
