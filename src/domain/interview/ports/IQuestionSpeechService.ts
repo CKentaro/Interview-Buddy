@@ -1,3 +1,5 @@
+import type { InterviewerType } from "../model/InterviewerType.vo";
+
 /** 次の質問を読み上げる発話文を生成するための入力。 */
 export type GenerateQuestionSpeechInput = {
   /** 画面表示用の質問文。失敗時の fallback にも使う。 */
@@ -6,6 +8,7 @@ export type GenerateQuestionSpeechInput = {
   previousQuestionText: string;
   /** 直前の回答内容。 */
   previousAnswerText: string;
+  interviewerType: InterviewerType;
 };
 
 /**

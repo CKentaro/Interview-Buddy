@@ -1,9 +1,11 @@
+import type { InterviewerType } from "../model/InterviewerType.vo";
+
 /** 開始発話を生成するための入力。 */
 export type GenerateOpeningSpeechInput = {
   displayText: string;
   companyName?: string;
   selectionStage?: string;
-  interviewerType?: string;
+  interviewerType: InterviewerType;
 };
 
 /**

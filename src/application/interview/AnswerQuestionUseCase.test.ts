@@ -300,6 +300,7 @@ describe("AnswerQuestionUseCase", () => {
         answerText: "チーム開発で品質改善に取り組みました。",
       },
     ]);
+    expect(followUpService.calls[0]?.interviewerType).toBe("neutral");
     expect(repository.saveAnswerCalls).toHaveLength(0);
     expect(repository.createFollowUpQuestionCalls).toHaveLength(0);
     expect(repository.saveAnswerAndCreateFollowUpQuestionCalls).toEqual([
@@ -341,8 +342,11 @@ describe("AnswerQuestionUseCase", () => {
     expect(repository.saveAnswerAndCompleteSessionCalls).toHaveLength(0);
   });
 
-  it("next_main: 深掘り上限到達後に次の MainQuestion と読み上げ文を返す", async () => {
+  it("next_main: 厳しめでも共通の深掘り上限到達後に次の MainQuestion へ進む", async () => {
     const repository = new FakeInterviewSessionRepository();
+    if (repository.session) {
+      repository.session.interviewerType = "strict";
+    }
     const speechService = new FakeQuestionSpeechService();
     const useCase = createUseCase(
       repository,
@@ -375,6 +379,7 @@ describe("AnswerQuestionUseCase", () => {
         displayText: nextMainQuestion.content,
         previousQuestionText: secondFollowUpQuestion.content,
         previousAnswerText: "別プロジェクトでも同じ工夫を使いました。",
+        interviewerType: "strict",
       },
     ]);
   });

@@ -1,4 +1,6 @@
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
+import { resolveInterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import type { IInterviewSessionRepository } from "@/domain/interview/ports/IInterviewSessionRepository";
 import type { IOpeningSpeechService } from "@/domain/interview/ports/IOpeningSpeechService";
@@ -13,7 +15,7 @@ export type StartInterviewInput = {
   jobMajor?: string;
   jobMinor?: string;
   selectionStage?: string;
-  interviewerType?: string;
+  interviewerType?: InterviewerType;
   voiceEnabled?: boolean;
 };
 
@@ -31,6 +33,7 @@ export class StartInterviewUseCase {
   ) {}
 
   async execute(input: StartInterviewInput): Promise<StartInterviewResult> {
+    const interviewerType = resolveInterviewerType(input.interviewerType);
     const bank = this.questionBankProvider.load();
     const selectedQuestions = selectMainQuestions(bank);
 
@@ -43,7 +46,7 @@ export class StartInterviewUseCase {
         jobMajor: input.jobMajor,
         jobMinor: input.jobMinor,
         selectionStage: input.selectionStage,
-        interviewerType: input.interviewerType,
+        interviewerType,
         selectedQuestions,
       });
 
@@ -54,7 +57,7 @@ export class StartInterviewUseCase {
           displayText: firstQuestion.content,
           companyName: input.companyName,
           selectionStage: input.selectionStage,
-          interviewerType: input.interviewerType,
+          interviewerType,
         });
         if (generated.trim().length > 0) {
           speechText = generated;

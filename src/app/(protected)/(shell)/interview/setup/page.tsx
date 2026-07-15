@@ -11,9 +11,9 @@ const STAGES = [
 ];
 
 const INTERVIEWERS = [
-  { id: "friendly", label: "フレンドリー" },
-  { id: "neutral", label: "ニュートラル" },
-  { id: "strict", label: "厳しめ" },
+  { id: "friendly", label: "親しみやすい" },
+  { id: "neutral", label: "標準" },
+  { id: "strict", label: "引き締まった" },
 ];
 
 function Field({
@@ -78,6 +78,7 @@ export default function InterviewSetupPage() {
           question: session.firstQuestion,
           questionNumber: 1,
           voiceEnabled,
+          interviewerType,
         }),
       );
       router.push(`/interview/${session.sessionId}/live`);
@@ -160,7 +161,7 @@ export default function InterviewSetupPage() {
               ))}
             </select>
           </Field>
-          <Field label="面接官タイプ">
+          <Field label="面接官の声・話し方">
             <select
               className={inputClass}
               value={interviewerType}

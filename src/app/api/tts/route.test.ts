@@ -19,7 +19,8 @@ const routeMocks = vi.hoisted(() => {
     UnauthorizedError,
     SpeechSynthesisError,
     requireUser: vi.fn<() => Promise<string>>(),
-    synthesizeSpeech: vi.fn<(text: string) => Promise<string>>(),
+    synthesizeSpeech:
+      vi.fn<(text: string, interviewerType?: string) => Promise<string>>(),
   };
 });
 
@@ -80,7 +81,37 @@ describe("POST /api/tts", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ audio: "BASE64PCM" });
-    expect(routeMocks.synthesizeSpeech).toHaveBeenCalledWith("こんにちは");
+    expect(routeMocks.synthesizeSpeech).toHaveBeenCalledWith(
+      "こんにちは",
+      undefined,
+    );
+  });
+
+  it("面接官タイプを音声合成へ渡す", async () => {
+    routeMocks.synthesizeSpeech.mockResolvedValue("BASE64PCM");
+
+    const response = await POST(
+      postRequest(
+        JSON.stringify({ text: "質問です", interviewerType: "strict" }),
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(routeMocks.synthesizeSpeech).toHaveBeenCalledWith(
+      "質問です",
+      "strict",
+    );
+  });
+
+  it("未対応の面接官タイプなら400を返す", async () => {
+    const response = await POST(
+      postRequest(
+        JSON.stringify({ text: "質問です", interviewerType: "unknown" }),
+      ),
+    );
+
+    expect(response.status).toBe(400);
+    expect(routeMocks.synthesizeSpeech).not.toHaveBeenCalled();
   });
 
   it("合成に失敗すれば 502 を返す（テキスト表示にフォールバックさせる）", async () => {

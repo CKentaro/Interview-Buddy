@@ -7,6 +7,7 @@ import type {
   IFollowUpQuestionService,
 } from "@/domain/interview/ports/IFollowUpQuestionService";
 import { geminiModel } from "./geminiModel";
+import { getInterviewerPromptInstruction } from "./interviewerPromptInstructions";
 
 const followUpSchema = z.object({
   displayText: z.string(),
@@ -31,6 +32,9 @@ ${context.parentMainQuestionText}
 
 ## これまでのやり取り
 ${history}
+
+## 面接官タイプ別の指示
+${getInterviewerPromptInstruction(context.interviewerType)}
 
 ## 指示
 - 直前の回答が曖昧なら、具体化を促す質問にしてください。

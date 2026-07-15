@@ -146,6 +146,15 @@ describe("POST /api/sessions", () => {
     });
   });
 
+  it("未対応の面接官タイプなら400を返す", async () => {
+    const response = await POST(
+      postRequest(JSON.stringify({ interviewerType: "unknown" })),
+    );
+
+    expect(response.status).toBe(400);
+    expect(routeMocks.createSessionInputs).toHaveLength(0);
+  });
+
   it("セッションを作成し、最初の質問を 201 で返す", async () => {
     const response = await POST(
       postRequest(

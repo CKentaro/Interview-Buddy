@@ -7,6 +7,11 @@ import type {
   QuestionResponse,
   SessionDetailResponse,
 } from "@/app/api/types";
+import {
+  DEFAULT_INTERVIEWER_TYPE,
+  resolveInterviewerType,
+  type InterviewerType,
+} from "@/domain/interview/model/InterviewerType.vo";
 
 /**
  * 面接実施中の画面。没入させたいためシェル無しの (immersive) グループに置く。
@@ -45,12 +50,15 @@ function stopCurrentAudio() {
  * 失敗時は null（呼び出し側はテキスト表示にフォールバックする）。
  * 質問画面を出す前にここで音声をバッファし、表示と読み上げを揃える。
  */
-async function prepareTTS(text: string): Promise<AudioBuffer | null> {
+async function prepareTTS(
+  text: string,
+  interviewerType: InterviewerType,
+): Promise<AudioBuffer | null> {
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, interviewerType }),
     });
     if (!res.ok) return null;
 
@@ -88,8 +96,11 @@ async function playBuffer(buf: AudioBuffer): Promise<void> {
 }
 
 /** テキストを音声化して再生する（手動の再生ボタン用）。失敗時は何もしない。 */
-async function speak(text: string): Promise<void> {
-  const buf = await prepareTTS(text);
+async function speak(
+  text: string,
+  interviewerType: InterviewerType,
+): Promise<void> {
+  const buf = await prepareTTS(text, interviewerType);
   if (buf) await playBuffer(buf);
 }
 
@@ -98,6 +109,7 @@ type StoredSession = {
   question: QuestionResponse;
   questionNumber: number;
   voiceEnabled?: boolean;
+  interviewerType?: string;
 };
 
 type CurrentQuestion = {
@@ -111,6 +123,7 @@ function readStoredQuestion(sessionId: string): {
   question: CurrentQuestion;
   questionNumber: number;
   voiceEnabled: boolean;
+  interviewerType: InterviewerType;
 } | null {
   if (typeof window === "undefined") return null;
   const raw = sessionStorage.getItem("ib-session");
@@ -125,6 +138,7 @@ function readStoredQuestion(sessionId: string): {
     },
     questionNumber: stored.questionNumber,
     voiceEnabled: stored.voiceEnabled ?? false,
+    interviewerType: resolveInterviewerType(stored.interviewerType),
   };
 }
 
@@ -136,6 +150,9 @@ export default function InterviewLivePage() {
   const [question, setQuestion] = useState<CurrentQuestion | null>(null);
   const [questionNumber, setQuestionNumber] = useState(1);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [interviewerType, setInterviewerType] = useState<InterviewerType>(
+    DEFAULT_INTERVIEWER_TYPE,
+  );
   const [loading, setLoading] = useState(true);
   // 開始質問だけ、音声のバッファが済むまで全画面ローディングで待つ（表示と読み上げを揃える）。
   const [preparingSpeech, setPreparingSpeech] = useState(false);
@@ -157,6 +174,7 @@ export default function InterviewLivePage() {
       // （SSR では読めないため初期 state に置けず、effect での同期 setState になる）
       /* eslint-disable react-hooks/set-state-in-effect */
       setVoiceEnabled(stored.voiceEnabled);
+      setInterviewerType(stored.interviewerType);
       setQuestionNumber(stored.questionNumber);
       setQuestion(stored.question);
       setLoading(false);
@@ -168,6 +186,7 @@ export default function InterviewLivePage() {
       if (stored.voiceEnabled) {
         void prepareTTS(
           stored.question.speechText ?? stored.question.text,
+          stored.interviewerType,
         ).then((buf) => {
           if (cancelled) return;
           setPreparingSpeech(false);
@@ -195,6 +214,7 @@ export default function InterviewLivePage() {
           return;
         }
         setQuestion({ id: unanswered.id, text: unanswered.content });
+        setInterviewerType(resolveInterviewerType(detail.interviewerType));
         setQuestionNumber(detail.questions.length);
         setLoading(false);
       })
@@ -219,6 +239,7 @@ export default function InterviewLivePage() {
         body: JSON.stringify({
           questionId: question.id,
           answerText,
+          voiceEnabled,
         }),
       });
       if (!res.ok) throw new Error(String(res.status));
@@ -236,7 +257,10 @@ export default function InterviewLivePage() {
       let nextBuffer: AudioBuffer | null = null;
       if (voiceEnabled) {
         stopCurrentAudio();
-        nextBuffer = await prepareTTS(next.speechText ?? next.text);
+        nextBuffer = await prepareTTS(
+          next.speechText ?? next.text,
+          interviewerType,
+        );
       }
 
       setQuestion({
@@ -253,6 +277,7 @@ export default function InterviewLivePage() {
           question: next,
           questionNumber: questionNumber + 1,
           voiceEnabled,
+          interviewerType,
         }),
       );
       if (nextBuffer) void playBuffer(nextBuffer);
@@ -329,7 +354,11 @@ export default function InterviewLivePage() {
           <button
             type="button"
             onClick={() =>
-              question && void speak(question.speechText ?? question.text)
+              question &&
+              void speak(
+                question.speechText ?? question.text,
+                interviewerType,
+              )
             }
             className="rounded-full border border-black/15 px-4 py-2 text-xs text-black/60 transition hover:border-black/40"
           >

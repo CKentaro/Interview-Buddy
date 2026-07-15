@@ -1,3 +1,6 @@
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
+import { getInterviewerVoiceProfile } from "./interviewerVoiceProfiles";
+
 /**
  * Gemini TTS（音声合成）アダプタ。
  *
@@ -9,8 +12,6 @@
 
 /** Gemini TTS モデル ID。 */
 export const GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts";
-/** 読み上げに使う音声（多言語対応・日本語も自然）。 */
-export const GEMINI_TTS_VOICE = "Kore";
 /** 返却される PCM のサンプルレート（Hz）。クライアントのデコードと一致させる。 */
 export const GEMINI_TTS_SAMPLE_RATE = 24000;
 
@@ -26,11 +27,22 @@ export class SpeechSynthesisError extends Error {
  * テキストを読み上げ音声（base64 PCM）に合成して返す。
  * 失敗時は SpeechSynthesisError を投げる（呼び出し側でフォールバックする）。
  */
-export async function synthesizeSpeech(text: string): Promise<string> {
+export async function synthesizeSpeech(
+  text: string,
+  interviewerType?: InterviewerType,
+): Promise<string> {
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey) {
     throw new SpeechSynthesisError("GOOGLE_GENERATIVE_AI_API_KEY is not set");
   }
+
+  const voiceProfile = getInterviewerVoiceProfile(interviewerType);
+  const speechPrompt = `次の「読み上げ本文」だけを日本語で音声化してください。
+
+音声演出: ${voiceProfile.direction}
+
+読み上げ本文:
+${text}`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent?key=${apiKey}`,
@@ -38,12 +50,12 @@ export async function synthesizeSpeech(text: string): Promise<string> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
+        contents: [{ parts: [{ text: speechPrompt }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: GEMINI_TTS_VOICE },
+              prebuiltVoiceConfig: { voiceName: voiceProfile.voiceName },
             },
           },
         },
