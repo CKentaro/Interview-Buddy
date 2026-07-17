@@ -114,6 +114,11 @@ export async function POST(
       return jsonError("Conflict", 409);
     }
     if (error instanceof FollowUpQuestionGenerationError) {
+      // 502 はクライアントへ固定文言を返すため、原因（cause）はここで必ずログに残す。
+      console.error(
+        "POST /api/sessions/[id]/answers follow-up generation failed:",
+        error.cause,
+      );
       return jsonError(
         "質問の生成に失敗しました。もう一度お試しください。",
         502,
