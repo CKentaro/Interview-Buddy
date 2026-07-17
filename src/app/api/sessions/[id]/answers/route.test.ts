@@ -46,6 +46,12 @@ const routeMocks = vi.hoisted(() => {
       this.cause = cause;
     }
   }
+  class AnswerTooLongError extends Error {
+    constructor() {
+      super("Answer text is too long");
+      this.name = "AnswerTooLongError";
+    }
+  }
 
   return {
     UnauthorizedError,
@@ -54,6 +60,7 @@ const routeMocks = vi.hoisted(() => {
     QuestionAlreadyAnsweredError,
     InvalidQuestionStateError,
     FollowUpQuestionGenerationError,
+    AnswerTooLongError,
     after: vi.fn(),
     execute: vi.fn(),
     requireUser: vi.fn<() => Promise<string>>(),
@@ -81,6 +88,7 @@ vi.mock("@/application/interview/AnswerQuestionUseCase", () => ({
   QuestionAlreadyAnsweredError: routeMocks.QuestionAlreadyAnsweredError,
   InvalidQuestionStateError: routeMocks.InvalidQuestionStateError,
   FollowUpQuestionGenerationError: routeMocks.FollowUpQuestionGenerationError,
+  AnswerTooLongError: routeMocks.AnswerTooLongError,
 }));
 
 vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
@@ -143,6 +151,24 @@ describe("POST /api/sessions/[id]/answers", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: "Bad Request",
     });
+  });
+
+  it("回答が 500 文字を超えたら 400 を返す（UseCase は呼ばない）", async () => {
+    const response = await POST(
+      postRequest(
+        JSON.stringify({
+          questionId: "question-1",
+          answerText: "あ".repeat(2001),
+        }),
+      ),
+      context(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "Bad Request",
+    });
+    expect(routeMocks.execute).not.toHaveBeenCalled();
   });
 
   it("継続時は AnswerResponse を 201 で返す", async () => {

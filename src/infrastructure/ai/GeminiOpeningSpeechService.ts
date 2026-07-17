@@ -5,6 +5,7 @@ import type {
   IOpeningSpeechService,
 } from "@/domain/interview/ports/IOpeningSpeechService";
 import { geminiModel } from "./geminiModel";
+import { getInterviewerPromptInstruction } from "./interviewerPromptInstructions";
 
 const speechSchema = z.object({ speechText: z.string() });
 
@@ -12,7 +13,6 @@ function buildPrompt(input: GenerateOpeningSpeechInput): string {
   const context = [
     input.companyName ? `- 企業名: ${input.companyName}` : null,
     input.selectionStage ? `- 選考段階: ${input.selectionStage}` : null,
-    input.interviewerType ? `- 面接官タイプ: ${input.interviewerType}` : null,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
@@ -23,13 +23,15 @@ function buildPrompt(input: GenerateOpeningSpeechInput): string {
 ## 面接の設定
 ${context.length > 0 ? context : "- 特になし"}
 
+## 面接官タイプ別の指示
+${getInterviewerPromptInstruction(input.interviewerType)}
+
 ## 最初の質問
 ${input.displayText}
 
 ## 指示
 - 面接官として自然な会話口調にしてください。
 - まず短い挨拶や導入を入れてから、最初の質問へつなげてください。
-- 面接官タイプが指定されていれば、その雰囲気に寄せてください。
 - 大げさな演出や過剰な自己紹介はしないでください。
 - speechText には読み上げる発話文のみを入れてください。`;
 }

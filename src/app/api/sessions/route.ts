@@ -9,6 +9,7 @@ import type {
 } from "@/app/api/types";
 import { GetInterviewHistoryUseCase } from "@/application/interview/GetInterviewHistoryUseCase";
 import { StartInterviewUseCase } from "@/application/interview/StartInterviewUseCase";
+import { INTERVIEWER_TYPES } from "@/domain/interview/model/InterviewerType.vo";
 import { GeminiOpeningSpeechService } from "@/infrastructure/ai/GeminiOpeningSpeechService";
 import { JsonQuestionBankProvider } from "@/infrastructure/questionBank/JsonQuestionBankProvider";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
@@ -22,7 +23,7 @@ const createSessionSchema = z
     jobMajor: z.string().optional(),
     jobMinor: z.string().optional(),
     selectionStage: z.string().optional(),
-    interviewerType: z.string().optional(),
+    interviewerType: z.enum(INTERVIEWER_TYPES).optional(),
     voiceEnabled: z.boolean().optional(),
   })
   .strict();
@@ -65,6 +66,7 @@ export async function POST(request: Request): Promise<Response> {
       sessionId: result.session.id,
       createdAt: result.session.startedAt.toISOString(),
       firstQuestion,
+      voiceEnabled: result.voiceEnabled,
     };
 
     return Response.json(response, { status: 201 });

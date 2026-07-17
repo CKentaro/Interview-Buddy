@@ -1,9 +1,20 @@
-export default function Home() {
+import { LandingHeader } from "@/components/landing/LandingHeader";
+import { Hero } from "@/components/landing/Hero";
+import { Features } from "@/components/landing/Features";
+import { ClosingCTA } from "@/components/landing/ClosingCTA";
+import { LandingFooter } from "@/components/landing/LandingFooter";
+
+export default function LandingPage() {
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center justify-center gap-8 px-6 py-16 text-center">
-      <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
-        Interview Buddy
-      </h1>
-    </main>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <LandingHeader />
+      <main style={{ flex: 1 }}>
+        <Hero />
+        <div className="hr" style={{ maxWidth: 1120, margin: "0 auto" }} />
+        <Features />
+        <ClosingCTA />
+      </main>
+      <LandingFooter />
+    </div>
   );
 }

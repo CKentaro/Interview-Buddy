@@ -1,22 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { LcMic, LcArrowUp, LcAlert } from "@/components/ui/icons";
 import type {
   AnswerResponse,
+  NextQuestionResponse,
   QuestionResponse,
   SessionDetailResponse,
 } from "@/app/api/types";
+import { MAIN_QUESTION_COUNT } from "@/domain/interview/services/selectMainQuestions";
+import { MAX_FOLLOW_UP_DEPTH } from "@/domain/interview/services/decideNextStep";
+import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
+import { MAX_VOICE_SESSIONS_PER_DAY } from "@/domain/interview/model/voiceRateLimit";
+import {
+  DEFAULT_INTERVIEWER_TYPE,
+  resolveInterviewerType,
+  type InterviewerType,
+} from "@/domain/interview/model/InterviewerType.vo";
 
-/**
- * 面接実施中の画面。没入させたいためシェル無しの (immersive) グループに置く。
- * 認証は親の (protected)/layout.tsx で他の要ログイン画面とまとめて保護される。
- *
- * 簡易実装: voiceEnabled の時のみ質問を TTS(/api/tts) で読み上げる。
- * 音声入力(STT)は非対応で、回答は常にテキスト入力で進める。
- */
+const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
-// Gemini TTS が返す PCM の仕様（サンプルレート）。
+/** 1 セッションの総質問数 = 本質問 5 問 × (本質問 1 + 深掘り最大 2)。 */
+const TOTAL_QUESTION_COUNT = MAIN_QUESTION_COUNT * (1 + MAX_FOLLOW_UP_DEPTH);
+
+/* ── 入力フォームの寸法 ──
+   textarea は 3 行までは高さが伸び、それ以降はフォーム内スクロールに切り替える。
+   高さ計算に使うため、実際に適用する font-size / line-height / padding と必ず揃えること。 */
+const TA_FONT_SIZE = 15;
+const TA_LINE_HEIGHT = 1.5;
+const TA_PADDING_Y = 12;
+const TA_MAX_ROWS = 3;
+const TA_ROW_HEIGHT = TA_FONT_SIZE * TA_LINE_HEIGHT;
+const TA_MAX_HEIGHT = TA_ROW_HEIGHT * TA_MAX_ROWS + TA_PADDING_Y * 2;
+const COMPOSER_PADDING_Y = 8;
+/** フォーム下のヒント行（gap 込み）。 */
+const COMPOSER_HINT_SPACE = 26;
+const FOOTER_PADDING_BOTTOM = 24;
+/** 3 行まで伸びたフォームが収まる高さ。main はこの分だけ下を空けておく。 */
+const COMPOSER_MAX_SPACE =
+  TA_MAX_HEIGHT + COMPOSER_PADDING_Y * 2 + COMPOSER_HINT_SPACE + FOOTER_PADDING_BOTTOM;
+
+/** 残りこの文字数を切ったら文字数カウンタを警告色にする。 */
+const ANSWER_LENGTH_WARN_AT = MAX_ANSWER_LENGTH - 200;
+
+/* ── Types ── */
+type CurrentQuestion = {
+  id: string;
+  text: string;
+  speechText?: string;
+};
+
+type StoredSession = {
+  sessionId: string;
+  voiceEnabled: boolean;
+  question: QuestionResponse;
+  questionNumber: number;
+  interviewerType?: string;
+  voiceLimited?: boolean;
+};
+
+/* ── Gemini TTS ── */
+
+// PCM specs returned by Gemini TTS API
 const PCM_SAMPLE_RATE = 24000;
 
 let _audioCtx: AudioContext | null = null;
@@ -29,158 +75,329 @@ function getAudioContext(): AudioContext {
   return _audioCtx;
 }
 
+/** 再生中の音声（Gemini・ブラウザ読み上げの両方）を止める。onended は呼ばれない。 */
 function stopCurrentAudio() {
   if (_currentSource) {
-    try {
-      _currentSource.stop();
-    } catch {
-      /* already stopped */
-    }
+    // 停止でも onended は発火するため、先に外して読み上げ終了と取り違えないようにする。
+    _currentSource.onended = null;
+    try { _currentSource.stop(); } catch { /* already stopped */ }
     _currentSource = null;
   }
+  if (typeof window !== "undefined") window.speechSynthesis?.cancel();
 }
 
 /**
- * テキストを /api/tts で音声化し、デコード済みの AudioBuffer を返す（まだ再生しない）。
- * 失敗時は null（呼び出し側はテキスト表示にフォールバックする）。
- * 質問画面を出す前にここで音声をバッファし、表示と読み上げを揃える。
+ * Fetch TTS audio and decode into an AudioBuffer (returns null on error).
+ * sessionId は /api/tts のゲート（音声あり かつ 本人のセッションか）に必須。
+ * interviewerType は面接官タイプごとの声色の切り替えに使う。
  */
-async function prepareTTS(text: string): Promise<AudioBuffer | null> {
+async function prepareTTS(
+  text: string,
+  sessionId: string,
+  interviewerType: InterviewerType,
+): Promise<AudioBuffer | null> {
   try {
     const res = await fetch("/api/tts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, sessionId, interviewerType }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) { console.warn("[TTS] API error", res.status); return null; }
 
-    const { audio } = (await res.json()) as { audio: string };
+    const { audio } = await res.json() as { audio: string };
     const binary = atob(audio);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const pcm = new Int16Array(bytes.buffer);
 
+    const pcm = new Int16Array(bytes.buffer);
     const ctx = getAudioContext();
+    if (ctx.state === "suspended") await ctx.resume();
     const buf = ctx.createBuffer(1, pcm.length, PCM_SAMPLE_RATE);
     const ch = buf.getChannelData(0);
     for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i]! / 32768;
     return buf;
   } catch (e) {
-    console.warn("[TTS] prepare failed:", e);
+    console.warn("[TTS] Prepare error:", e);
     return null;
   }
 }
 
-/** 準備済みの AudioBuffer を即座に再生する。 */
-async function playBuffer(buf: AudioBuffer): Promise<void> {
+/**
+ * Play a pre-loaded AudioBuffer immediately.
+ * onEnded は読み上げが終わった時に呼ぶ。再生できなかった場合もその場で呼ぶ（口パクが残らないように）。
+ */
+async function playAudioBuffer(buf: AudioBuffer, onEnded?: () => void): Promise<void> {
+  stopCurrentAudio();
   try {
     const ctx = getAudioContext();
+    // Always resume — may be suspended after page navigation or inactivity
     if (ctx.state !== "running") await ctx.resume();
-    stopCurrentAudio();
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(ctx.destination);
+    src.onended = () => {
+      if (_currentSource === src) _currentSource = null;
+      onEnded?.();
+    };
     src.start();
     _currentSource = src;
   } catch (e) {
-    console.warn("[TTS] playback failed:", e);
+    console.warn("[TTS] Play error:", e);
+    onEnded?.();
   }
 }
 
-/** テキストを音声化して再生する（手動の再生ボタン用）。失敗時は何もしない。 */
-async function speak(text: string): Promise<void> {
-  const buf = await prepareTTS(text);
-  if (buf) await playBuffer(buf);
+/**
+ * Fallback: browser Web Speech API.
+ * Gemini の合成に失敗したときだけ使う。音声枠の消費判定はセッション作成時に済んでおり、
+ * こちらはブラウザ内で完結するため枠の抜け道にはならない（面接官ごとの声色は再現できない）。
+ */
+function speakWebSpeech(text: string, onEnded?: () => void): void {
+  if (typeof window === "undefined" || !window.speechSynthesis) { onEnded?.(); return; }
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = "ja-JP";
+  utt.rate = 0.92;
+  utt.onend = () => onEnded?.();
+  utt.onerror = () => onEnded?.();
+  window.speechSynthesis.speak(utt);
 }
 
-type StoredSession = {
-  sessionId: string;
-  question: QuestionResponse;
-  questionNumber: number;
-  voiceEnabled?: boolean;
+/**
+ * 用意した音声（無ければブラウザ読み上げ）で質問を読み上げ、その間 setSpeaking(true) にする。
+ * 読み上げ中かどうかは面接官アバターの口パクに使うため、失敗時も必ず false へ戻す。
+ */
+async function speakQuestion(
+  buf: AudioBuffer | null,
+  fallbackText: string,
+  setSpeaking: (v: boolean) => void,
+): Promise<void> {
+  setSpeaking(true);
+  if (buf) await playAudioBuffer(buf, () => setSpeaking(false));
+  else speakWebSpeech(fallbackText, () => setSpeaking(false));
+}
+
+/* ── Speech Recognition (Web Speech API) ── */
+
+type SpeechResultAlt = { transcript: string };
+type SpeechResult = { isFinal: boolean; 0: SpeechResultAlt; length: number };
+type SpeechResultList = { length: number; [i: number]: SpeechResult };
+type SpeechRecognitionEventLike = { resultIndex: number; results: SpeechResultList };
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
 };
 
-type CurrentQuestion = {
-  id: string;
-  text: string;
-  speechText?: string;
-};
-
-/** sessionStorage から復元できる場合のみ同期的に読む（無ければ null）。 */
-function readStoredQuestion(sessionId: string): {
-  question: CurrentQuestion;
-  questionNumber: number;
-  voiceEnabled: boolean;
-} | null {
+function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   if (typeof window === "undefined") return null;
-  const raw = sessionStorage.getItem("ib-session");
-  if (!raw) return null;
-  const stored: StoredSession = JSON.parse(raw);
-  if (stored.sessionId !== sessionId) return null;
-  return {
-    question: {
-      id: stored.question.id,
-      text: stored.question.text,
-      speechText: stored.question.speechText,
-    },
-    questionNumber: stored.questionNumber,
-    voiceEnabled: stored.voiceEnabled ?? false,
+  const w = window as unknown as {
+    SpeechRecognition?: new () => SpeechRecognitionLike;
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
   };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-export default function InterviewLivePage() {
+/* ── AI presence ──
+   状態は「ユーザー回答中（idle）」「次の質問を考え中（thinking）」「読み上げ中（speaking）」の 3 つ。
+   speaking では閉じ口の上に開き口を重ねて交互に見せ、喋っているように表示する。 */
+function AIPresence({ state }: { state: "idle" | "thinking" | "speaking" }) {
+  return (
+    <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {state === "thinking" && (
+        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
+      )}
+      <span aria-hidden style={{ position: "relative", width: 72, height: 72 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className="ib-face" src="/interviewer/face-closed.png" alt="" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className={`ib-face ib-face-open${state === "speaking" ? " ib-face-talking" : ""}`} src="/interviewer/face-open.png" alt="" />
+      </span>
+    </div>
+  );
+}
+
+/* ── Abort dialog ── */
+function AbortModal({ onCancel, onConfirm, aborting }: { onCancel: () => void; onConfirm: () => void; aborting: boolean }) {
+  return (
+    <div className="dialog-backdrop" onClick={onCancel}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-title">面接を中断しますか？</div>
+        <div className="dialog-body">ここまでの回答とフィードバックは保存されません。中断すると、この面接はやり直しになります。</div>
+        <div className="dialog-actions">
+          <button className="btn btn-secondary" onClick={onCancel} disabled={aborting}>続ける</button>
+          <button className="btn btn-primary" onClick={onConfirm} disabled={aborting}>{aborting ? "中断しています…" : "中断する"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Page ── */
+export default function LivePage() {
   const { id: sessionId } = useParams<{ id: string }>();
   const router = useRouter();
 
-  // 初期値は SSR と一致する server-safe な値にする（sessionStorage はマウント後に読む）。
+  const [status, setStatus] = useState<"preparing" | "ready">("preparing");
+
   const [question, setQuestion] = useState<CurrentQuestion | null>(null);
-  const [questionNumber, setQuestionNumber] = useState(1);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  // 開始質問だけ、音声のバッファが済むまで全画面ローディングで待つ（表示と読み上げを揃える）。
-  const [preparingSpeech, setPreparingSpeech] = useState(false);
-  const [answerText, setAnswerText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [interviewerType, setInterviewerType] = useState<InterviewerType>(DEFAULT_INTERVIEWER_TYPE);
+  // 音声を要求したのに本日の枠が尽きていた場合のみ true（テキスト進行への切り替えを通知する）。
+  const [voiceLimited, setVoiceLimited] = useState(false);
+  const [questionNumber, setQuestionNumber] = useState(1);
+
+  // 質問の読み上げ中は true。面接官アバターの口パクに使う。
+  const [speaking, setSpeaking] = useState(false);
+
+  const [text, setText] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [sttSupported, setSttSupported] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [showAbort, setShowAbort] = useState(false);
   const [aborting, setAborting] = useState(false);
   const [error, setError] = useState("");
 
-  // マウント後に sessionStorage を読み、無ければセッション詳細から復元する。
-  // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の
-  // prepare がキャンセルされたまま再実行されず固まるのを避けるため、cleanup の
-  // cancelled フラグだけで制御する（本番は 1 回、開発 StrictMode は自己回復）。
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Speech-to-text (Web Speech API) ──
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const committedTextRef = useRef("");
+  const listeningRef = useRef(false);
+  const suppressResultRef = useRef(false);
+  const resyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSttSupported(getSpeechRecognitionCtor() !== null);
+    return () => {
+      listeningRef.current = false;
+      if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+      recognitionRef.current?.abort();
+    };
+  }, []);
+
+  const stopRecognition = () => {
+    listeningRef.current = false;
+    suppressResultRef.current = false;
+    if (resyncTimerRef.current) { clearTimeout(resyncTimerRef.current); resyncTimerRef.current = null; }
+    recognitionRef.current?.stop();
+    setRecording(false);
+  };
+
+  const handleManualEdit = (value: string) => {
+    const clamped = value.slice(0, MAX_ANSWER_LENGTH);
+    setText(clamped);
+    if (!recording) return;
+    committedTextRef.current = clamped;
+    suppressResultRef.current = true;
+    if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+    resyncTimerRef.current = setTimeout(() => {
+      resyncTimerRef.current = null;
+      suppressResultRef.current = false;
+      if (listeningRef.current) recognitionRef.current?.abort();
+    }, 350);
+  };
+
+  const startRecognition = () => {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) { setSttSupported(false); return; }
+
+    const rec = new Ctor();
+    rec.lang = "ja-JP";
+    rec.continuous = true;
+    rec.interimResults = true;
+
+    committedTextRef.current = text ? text.replace(/\s+$/, "") + " " : "";
+
+    rec.onresult = (e) => {
+      if (suppressResultRef.current) return;
+      let interim = "";
+      let final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (!r) continue;
+        if (r.isFinal) final += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      // 口述でも上限を超えないよう、確定テキスト・表示ともに切り詰める。
+      if (final) {
+        committedTextRef.current = (committedTextRef.current + final).slice(0, MAX_ANSWER_LENGTH);
+      }
+      setText((committedTextRef.current + interim).slice(0, MAX_ANSWER_LENGTH));
+    };
+    rec.onerror = (ev) => {
+      if (ev.error !== "no-speech" && ev.error !== "aborted") {
+        listeningRef.current = false;
+        setRecording(false);
+      }
+    };
+    rec.onend = () => {
+      if (listeningRef.current) {
+        try { rec.start(); } catch { listeningRef.current = false; setRecording(false); }
+      } else {
+        setRecording(false);
+      }
+    };
+
+    recognitionRef.current = rec;
+    listeningRef.current = true;
+    try {
+      rec.start();
+      setRecording(true);
+    } catch {
+      listeningRef.current = false;
+      setRecording(false);
+    }
+  };
+
+  const toggleRecording = () => { if (recording) stopRecognition(); else startRecognition(); };
+
+  // sessionStorage から復元し、音声ありなら最初の質問の TTS を先に用意する。
+  // sessionStorage が無い（リロード等）場合はセッション詳細から未回答の質問を復元する（音声なし）。
+  // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の prepare が
+  // キャンセルされたまま再実行されず固まるのを避けるため、cleanup の cancelled フラグだけで制御する。
   useEffect(() => {
     let cancelled = false;
 
-    const stored = readStoredQuestion(sessionId);
-    if (stored) {
-      // client 専用の sessionStorage をマウント時に一度だけ読んで復元する正当なケース。
-      // （SSR では読めないため初期 state に置けず、effect での同期 setState になる）
+    const raw = typeof window === "undefined" ? null : sessionStorage.getItem("ib-session");
+    const stored: StoredSession | null = raw ? JSON.parse(raw) : null;
+
+    if (stored && stored.sessionId === sessionId) {
+      const storedType = resolveInterviewerType(stored.interviewerType);
       /* eslint-disable react-hooks/set-state-in-effect */
-      setVoiceEnabled(stored.voiceEnabled);
-      setQuestionNumber(stored.questionNumber);
       setQuestion(stored.question);
-      setLoading(false);
-      if (stored.voiceEnabled) {
-        // 開始質問: 音声をバッファしてから読み上げつつ画面を出す。
-        setPreparingSpeech(true);
+      setVoiceEnabled(stored.voiceEnabled);
+      setInterviewerType(storedType);
+      setVoiceLimited(stored.voiceLimited ?? false);
+      setQuestionNumber(stored.questionNumber);
+
+      if (!stored.voiceEnabled) {
+        setStatus("ready");
+        /* eslint-enable react-hooks/set-state-in-effect */
+        return;
       }
-      /* eslint-enable react-hooks/set-state-in-effect */
-      if (stored.voiceEnabled) {
-        void prepareTTS(
-          stored.question.speechText ?? stored.question.text,
-        ).then((buf) => {
-          if (cancelled) return;
-          setPreparingSpeech(false);
-          if (buf) void playBuffer(buf);
-        });
-      }
+
+      const speechText = stored.question.speechText ?? stored.question.text;
+      void prepareTTS(speechText, sessionId, storedType).then(async (buf) => {
+        if (cancelled) return;
+        setStatus("ready");
+        await speakQuestion(buf, speechText, setSpeaking);
+      });
       return () => {
         cancelled = true;
         stopCurrentAudio();
+        setSpeaking(false);
       };
     }
 
-    // sessionStorage 無し(リロード等) → セッション詳細から未回答の質問を復元する（音声なし）。
+    // sessionStorage 無し（リロード等）→ セッション詳細から未回答の質問を復元する（音声なし）。
     fetch(`/api/sessions/${sessionId}`)
       .then((r) => r.json())
       .then((detail: SessionDetailResponse) => {
@@ -195,173 +412,259 @@ export default function InterviewLivePage() {
           return;
         }
         setQuestion({ id: unanswered.id, text: unanswered.content });
+        setInterviewerType(resolveInterviewerType(detail.interviewerType));
         setQuestionNumber(detail.questions.length);
-        setLoading(false);
+        setStatus("ready");
       })
       .catch(() => {
         if (cancelled) return;
         setError("セッション情報の取得に失敗しました。");
-        setLoading(false);
+        setStatus("ready");
       });
+
     return () => {
       cancelled = true;
     };
   }, [sessionId, router]);
 
-  const handleSubmit = async () => {
-    if (!question || !answerText.trim()) return;
-    setSubmitting(true);
+  // 面接開始時と質問が切り替わったタイミングで入力欄へフォーカスを戻す
+  useEffect(() => {
+    if (status === "ready") taRef.current?.focus();
+  }, [status, question?.id]);
+
+  // Resize textarea（3 行を超えたら伸ばさず、フォーム内スクロールに任せる）
+  useEffect(() => {
+    if (taRef.current) {
+      taRef.current.style.height = "auto";
+      taRef.current.style.height = Math.min(taRef.current.scrollHeight, TA_MAX_HEIGHT) + "px";
+    }
+  }, [text]);
+
+  const canSend = text.trim().length > 0;
+
+  /**
+   * Shift + Enter で改行、Enter で送信。
+   * 日本語入力の変換確定も Enter を使うため、変換中（isComposing）は送信しない。
+   */
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (canSend && !sending) handleSend();
+  };
+
+  const handleSend = async () => {
+    if (sending || !question) return;
+    if (recording) stopRecognition();
+    setSending(true);
     setError("");
+
+    const answerText = text.trim();
+
     try {
       const res = await fetch(`/api/sessions/${sessionId}/answers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questionId: question.id,
-          answerText,
-        }),
+        body: JSON.stringify({ questionId: question.id, answerText, voiceEnabled }),
       });
-      if (!res.ok) throw new Error(String(res.status));
-      const result: AnswerResponse = await res.json();
+      if (!res.ok) throw new Error(`${res.status}`);
 
-      if (result.isSessionComplete) {
+      const data: AnswerResponse = await res.json();
+
+      if (data.isSessionComplete) {
+        stopCurrentAudio();
+        setSpeaking(false);
         sessionStorage.removeItem("ib-session");
         router.push(`/interview/${sessionId}/feedback`);
         return;
       }
 
-      // 音声ありなら、直前の質問を出したまま次質問の音声をバッファし、
-      // 準備できてから質問を差し替えて再生する（画面全体を待たせない）。
-      const next = result.nextQuestion;
-      let nextBuffer: AudioBuffer | null = null;
-      if (voiceEnabled) {
-        stopCurrentAudio();
-        nextBuffer = await prepareTTS(next.speechText ?? next.text);
-      }
+      const next = data.nextQuestion as NextQuestionResponse;
+      const speechText = next.speechText ?? next.text;
+      // 読み上げありのときは音声を用意し終えてから次の質問へ切り替える
+      const buf = voiceEnabled ? await prepareTTS(speechText, sessionId, interviewerType) : null;
 
-      setQuestion({
-        id: next.id,
-        text: next.text,
-        speechText: next.speechText,
-      });
+      setQuestion(next);
       setQuestionNumber((n) => n + 1);
-      setAnswerText("");
-      sessionStorage.setItem(
-        "ib-session",
-        JSON.stringify({
-          sessionId,
-          question: next,
-          questionNumber: questionNumber + 1,
-          voiceEnabled,
-        }),
-      );
-      if (nextBuffer) void playBuffer(nextBuffer);
+      setText("");
+      setSending(false);
+      // リロードしても同じ質問から続けられるよう、進行状態を保存し直す。
+      sessionStorage.setItem("ib-session", JSON.stringify({
+        sessionId,
+        question: next,
+        questionNumber: questionNumber + 1,
+        voiceEnabled,
+        interviewerType,
+        voiceLimited,
+      }));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      if (voiceEnabled) await speakQuestion(buf, speechText, setSpeaking);
     } catch (e) {
       console.error(e);
-      setError("回答の送信に失敗しました。もう一度お試しください。");
-    } finally {
-      setSubmitting(false);
+      setError("回答を送信できませんでした。通信状況をご確認のうえ、もう一度お試しください。");
+      setSending(false);
     }
   };
 
-  // 面接を中断する。再開は未実装のため、セッションごと破棄してホームへ戻る
-  // （フィードバックは生成しない）。破棄は取り消せないので確認してから実行する。
+  // 中断：途中まで作成されたセッションを削除し、データを残さず HOME へ戻る。
+  // 破棄は取り消せないため、確認ダイアログを経てから実行する。
   const handleAbort = async () => {
     if (aborting) return;
-    if (
-      !window.confirm(
-        "面接を中断しますか？ここまでの質問・回答は破棄され、フィードバックは作成されません。",
-      )
-    ) {
-      return;
-    }
+    if (recording) stopRecognition();
     setAborting(true);
-    setError("");
+    stopCurrentAudio();
+    setSpeaking(false);
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(String(res.status));
-      stopCurrentAudio();
+      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`${res.status}`);
       sessionStorage.removeItem("ib-session");
       router.replace("/home");
     } catch (e) {
-      console.error(e);
-      setError("面接の中断に失敗しました。もう一度お試しください。");
+      console.error("セッションの削除に失敗しました", e);
       setAborting(false);
+      setShowAbort(false);
+      setError("面接を中断できませんでした。もう一度お試しください。");
     }
   };
 
-  if (loading || preparingSpeech) {
+  const aiState = sending ? "thinking" : speaking ? "speaking" : "idle";
+  const aiStateLabel = sending
+    ? "次の質問を考えています…"
+    : speaking
+      ? "面接官が質問しています…"
+      : "あなたの回答をお待ちしています";
+
+  // ── Preparing screen ──
+  if (status === "preparing" || !question) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-black/10 border-t-black" />
-        {preparingSpeech && (
-          <p className="text-xs tracking-wider text-black/40">
-            面接を準備中…
-          </p>
-        )}
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--color-bg)", gap: 16, padding: 24, textAlign: "center" }}>
+        <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
+          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--font-jp)" }}>面接の準備をしています…</div>
+        <p style={{ margin: 0, fontSize: 13, color: muted(55), maxWidth: "34ch", fontFamily: "var(--font-jp)" }}>AI が最初の質問を用意しています。もう少しだけお待ちください。</p>
       </div>
     );
   }
 
+  const sendActive = canSend && !sending;
+  const nearLimit = text.length >= ANSWER_LENGTH_WARN_AT;
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16">
-      <button
-        type="button"
-        onClick={handleAbort}
-        disabled={aborting}
-        className="fixed right-5 top-5 rounded-full border border-black/15 px-3 py-1.5 text-xs text-black/50 transition hover:border-black/40 hover:text-black/70 disabled:opacity-40"
-      >
-        {aborting ? "中断中…" : "面接を中断"}
-      </button>
-
-      <div className="text-center text-xs tracking-wider text-black/40">
-        QUESTION {String(questionNumber).padStart(2, "0")}
-      </div>
-
-      <div className="rounded-2xl bg-black px-10 py-10 text-white">
-        <p className="text-lg leading-relaxed">{question?.text}</p>
-      </div>
-
-      {voiceEnabled && (
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={() =>
-              question && void speak(question.speechText ?? question.text)
-            }
-            className="rounded-full border border-black/15 px-4 py-2 text-xs text-black/60 transition hover:border-black/40"
-          >
-            🔊 もう一度読み上げる
-          </button>
+    <div style={{ position: "relative", height: "100dvh", display: "flex", flexDirection: "column", background: "var(--color-bg)" }}>
+      {/* minimal top bar */}
+      <header style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>
+            質問 {questionNumber} / {TOTAL_QUESTION_COUNT} 問
+          </span>
+          <span aria-hidden style={{ width: 96, height: 4, borderRadius: 2, background: "var(--color-neutral-300)", overflow: "hidden" }}>
+            <span style={{ display: "block", height: "100%", width: `${(questionNumber / TOTAL_QUESTION_COUNT) * 100}%`, background: "var(--color-accent-500)", borderRadius: 2, transition: "width .4s ease" }} />
+          </span>
+          <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>
-      )}
+        <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12 }}>面接を中断する</button>
+      </header>
 
-      <textarea
-        value={answerText}
-        onChange={(e) => setAnswerText(e.target.value)}
-        rows={6}
-        placeholder="ここに回答を入力してください…"
-        className="w-full resize-none rounded-xl border border-black/15 p-4 text-sm outline-none focus:border-black/40"
-      />
+      {/* main：フォームが伸びても再レイアウトされないよう、下にフォームの最大高ぶんを常に確保する */}
+      <main style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `24px 24px ${COMPOSER_MAX_SPACE}px`, gap: 24 }}>
+        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
+          {voiceLimited && (
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+                本日の音声利用枠（1日{MAX_VOICE_SESSIONS_PER_DAY}回）は使用済みのため、テキストのみで進行します。
+              </div>
+            </div>
+          )}
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          <h2 key={question.id} style={{ margin: 0, fontSize: 24, lineHeight: 1.6, textAlign: "center", fontFamily: "var(--font-jp)", animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <AIPresence state={aiState} />
+            <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
+          </div>
+
+          {error && (
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, flex: 1, fontFamily: "var(--font-jp)" }}>{error}</div>
+              <button className="btn btn-ghost" onClick={() => setError("")} style={{ fontSize: 12, flex: "none" }}>閉じる</button>
+            </div>
+          )}
         </div>
-      )}
+      </main>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          disabled={!answerText.trim() || submitting}
-          onClick={handleSubmit}
-          className="rounded-full bg-black px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {submitting ? "送信中…" : "回答を送信する →"}
-        </button>
-      </div>
+      {/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */}
+      <footer style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", padding: "0 24px 24px", pointerEvents: "none" }}>
+        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
+          <div style={{ width: "100%", display: "flex", alignItems: "flex-end", gap: 6, background: "var(--color-bg)", boxShadow: "var(--shadow-md)", borderRadius: "var(--radius-lg)", padding: "8px 8px 8px 22px" }}>
+            <textarea
+              ref={taRef}
+              rows={1}
+              value={text}
+              maxLength={MAX_ANSWER_LENGTH}
+              onChange={(e) => handleManualEdit(e.target.value)}
+              placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
+              onKeyDown={handleKeyDown}
+              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", resize: "none", font: "inherit", fontFamily: "var(--font-jp)", fontSize: TA_FONT_SIZE, lineHeight: TA_LINE_HEIGHT, padding: `${TA_PADDING_Y}px 0`, maxHeight: TA_MAX_HEIGHT, overflowY: "auto", color: "var(--color-text)" }}
+            />
+            {sttSupported && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                title={recording ? "停止" : "マイクで入力"}
+                aria-pressed={recording}
+                style={{ all: "unset", cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-accent-600)" : muted(55), transition: "background .15s ease" }}
+              >
+                <LcMic size={19} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!sendActive}
+              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: 44, height: 44, borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
+            >
+              {sending ? (
+                <span style={{ width: 15, height: 15, border: "2px solid color-mix(in srgb, #fff 40%, transparent)", borderTopColor: "#fff", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+              ) : (
+                <LcArrowUp size={18} />
+              )}
+            </button>
+          </div>
+
+          {/* ヒント行：左に操作ヒント／録音状態、右に文字数カウンタ */}
+          <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            {recording ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-600)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
+                <span>録音中です。もう一度マイクをタップすると停止します。</span>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11.5, color: muted(40), fontFamily: "var(--font-jp)" }}>
+                Shift + Enter で改行・Enter で送信
+              </div>
+            )}
+            {text.length > 0 && (
+              <div style={{ flex: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-jp)", color: nearLimit ? "var(--color-accent-700)" : muted(40) }}>
+                {text.length} / {MAX_ANSWER_LENGTH}
+              </div>
+            )}
+          </div>
+
+          {!sttSupported && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: muted(55), fontFamily: "var(--font-jp)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
+            </div>
+          )}
+        </div>
+      </footer>
+
+      {showAbort && <AbortModal onCancel={() => setShowAbort(false)} onConfirm={handleAbort} aborting={aborting} />}
     </div>
   );
 }

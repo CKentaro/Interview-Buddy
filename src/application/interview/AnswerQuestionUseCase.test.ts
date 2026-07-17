@@ -27,6 +27,7 @@ import type {
 } from "@/domain/interview/ports/IQuestionSpeechService";
 import {
   AnswerQuestionUseCase,
+  AnswerTooLongError,
   FollowUpQuestionGenerationError,
   QuestionAlreadyAnsweredError,
 } from "./AnswerQuestionUseCase";
@@ -109,6 +110,18 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
   saveAnswerAndCompleteSessionCalls: SaveAnswerAndCompleteSessionInput[] = [];
 
   async createSession(): Promise<CreateSessionResult> {
+    throw new Error("Not used");
+  }
+
+  async tryConsumeVoiceQuota(): Promise<boolean> {
+    throw new Error("Not used");
+  }
+
+  async countVoiceUsageOnDate(): Promise<number> {
+    throw new Error("Not used");
+  }
+
+  async isVoiceEnabledSessionForUser(): Promise<boolean> {
     throw new Error("Not used");
   }
 
@@ -274,6 +287,22 @@ function createUseCase(
 }
 
 describe("AnswerQuestionUseCase", () => {
+  it("回答が 500 文字を超えたら AnswerTooLongError を投げ、DB を触らない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = createUseCase(repository);
+
+    await expect(
+      useCase.execute({
+        userId: "user-1",
+        sessionId: "session-1",
+        questionId: mainQuestion.id,
+        answerText: "あ".repeat(2001),
+      }),
+    ).rejects.toBeInstanceOf(AnswerTooLongError);
+
+    expect(repository.saveAnswerCalls).toHaveLength(0);
+  });
+
   it("followup: Gemini 生成成功後に Answer と FollowUpQuestion を transaction 保存する", async () => {
     const repository = new FakeInterviewSessionRepository();
     const followUpService = new FakeFollowUpQuestionService();
@@ -300,6 +329,7 @@ describe("AnswerQuestionUseCase", () => {
         answerText: "チーム開発で品質改善に取り組みました。",
       },
     ]);
+    expect(followUpService.calls[0]?.interviewerType).toBe("neutral");
     expect(repository.saveAnswerCalls).toHaveLength(0);
     expect(repository.createFollowUpQuestionCalls).toHaveLength(0);
     expect(repository.saveAnswerAndCreateFollowUpQuestionCalls).toEqual([
@@ -341,8 +371,11 @@ describe("AnswerQuestionUseCase", () => {
     expect(repository.saveAnswerAndCompleteSessionCalls).toHaveLength(0);
   });
 
-  it("next_main: 深掘り上限到達後に次の MainQuestion と読み上げ文を返す", async () => {
+  it("next_main: 厳しめでも共通の深掘り上限到達後に次の MainQuestion へ進む", async () => {
     const repository = new FakeInterviewSessionRepository();
+    if (repository.session) {
+      repository.session.interviewerType = "strict";
+    }
     const speechService = new FakeQuestionSpeechService();
     const useCase = createUseCase(
       repository,
@@ -375,6 +408,7 @@ describe("AnswerQuestionUseCase", () => {
         displayText: nextMainQuestion.content,
         previousQuestionText: secondFollowUpQuestion.content,
         previousAnswerText: "別プロジェクトでも同じ工夫を使いました。",
+        interviewerType: "strict",
       },
     ]);
   });

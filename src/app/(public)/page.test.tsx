@@ -3,10 +3,10 @@ import { expect, test } from "vitest"
 
 import Home from "./page"
 
-test("renders the app heading", () => {
+test("renders the hero heading", () => {
   render(<Home />)
 
-  expect(
-    screen.getByRole("heading", { level: 1, name: "Interview Buddy" }),
-  ).toBeInTheDocument()
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+    "面接を、もっと落ち着いて練習できる場所に。",
+  )
 })
