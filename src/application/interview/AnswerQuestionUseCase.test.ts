@@ -287,7 +287,7 @@ function createUseCase(
 }
 
 describe("AnswerQuestionUseCase", () => {
-  it("回答が 2000 文字を超えたら AnswerTooLongError を投げ、DB を触らない", async () => {
+  it("回答が 500 文字を超えたら AnswerTooLongError を投げ、DB を触らない", async () => {
     const repository = new FakeInterviewSessionRepository();
     const useCase = createUseCase(repository);
 

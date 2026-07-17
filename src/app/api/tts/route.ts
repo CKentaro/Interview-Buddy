@@ -11,7 +11,7 @@ import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/Prisma
 import { requireUser } from "@/lib/auth-guard";
 
 /** 読み上げ対象テキストの上限。1 問分の読み上げには十分で、TTS コストの上限にもなる。 */
-const MAX_TTS_TEXT_LENGTH = 2000;
+const MAX_TTS_TEXT_LENGTH = 500;
 
 const ttsSchema = z
   .object({

@@ -153,7 +153,7 @@ describe("POST /api/sessions/[id]/answers", () => {
     });
   });
 
-  it("回答が 2000 文字を超えたら 400 を返す（UseCase は呼ばない）", async () => {
+  it("回答が 500 文字を超えたら 400 を返す（UseCase は呼ばない）", async () => {
     const response = await POST(
       postRequest(
         JSON.stringify({
