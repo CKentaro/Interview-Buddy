@@ -37,7 +37,7 @@ export default async function ProfilePage() {
   const avatarChar = (profile.name ?? "?").charAt(0).toUpperCase();
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "44px 32px 56px", display: "flex", flexDirection: "column", gap: 24 }}>
+    <main className="ib-page" style={{ "--ib-page-max": "960px" } as React.CSSProperties}>
       <PageHeader title="プロフィール" subtitle="アカウントと練習の情報" />
 
       {/* user */}
@@ -57,7 +57,7 @@ export default async function ProfilePage() {
       {/* stats */}
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>これまでの積み重ね</h3>
-        <div className="card elev-sm" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, padding: 16 }}>
+        <div className="card elev-sm ib-stat-grid">
           <Stat value={String(profile.totalSessions)} unit="回" label="練習回数" />
           <Stat value={relLabel(profile.lastSessionAt)} label="最終練習日" />
         </div>
@@ -66,7 +66,7 @@ export default async function ProfilePage() {
       {/* account */}
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>アカウント</h3>
-        <div className="card elev-sm" style={{ padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <div className="card elev-sm ib-split" style={{ padding: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/google-g.svg" alt="" width={20} height={20} style={{ flex: "none" }} />

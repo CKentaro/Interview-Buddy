@@ -168,7 +168,7 @@ export default function SetupPage() {
   ];
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", justifyContent: "center", padding: "36px 32px 56px" }}>
+    <main className="ib-setup-main">
         <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}>
           {/* top actions */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
@@ -198,7 +198,7 @@ export default function SetupPage() {
             </div>
           </div>
 
-          <div className="card elev-md ib-section" key={step} style={{ padding: 24, gap: 16 }}>
+          <div className="card elev-md ib-section ib-setup-card" key={step}>
             {step === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
@@ -270,7 +270,7 @@ export default function SetupPage() {
                   {INTERVIEWERS.map((t) => <Choice key={t.key} label={t.label} desc={t.desc} active={form.interviewerType === t.key} onSelect={() => patch({ interviewerType: t.key })} />)}
                 </div>
                 <div className="hr" style={{ margin: 0 }} />
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                <div className="ib-split">
                   <div>
                     <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>AI の音声で質問を読み上げる</div>
                     <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)" }}>オフにすると、テキストのみで進行します。</div>

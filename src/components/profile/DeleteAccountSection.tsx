@@ -29,8 +29,8 @@ export function DeleteAccountSection({ userId }: { userId: string }) {
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>アカウントの削除</h3>
       <div
-        className="card elev-sm"
-        style={{ padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, border: "1px solid var(--warn-line)" }}
+        className="card elev-sm ib-split"
+        style={{ padding: 16, border: "1px solid var(--warn-line)" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ color: "var(--warn)", display: "flex" }}><LcAlert size={20} /></span>

@@ -14,10 +14,8 @@ export function LandingHeader() {
       }}
     >
       <div
+        className="ib-landing-inner"
         style={{
-          maxWidth: 1120,
-          margin: "0 auto",
-          padding: "0 32px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",

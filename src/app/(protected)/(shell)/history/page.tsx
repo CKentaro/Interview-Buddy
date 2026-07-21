@@ -28,7 +28,7 @@ export default function HistoryPage() {
   const visible = sessions.slice(cur * PAGE_SIZE, cur * PAGE_SIZE + PAGE_SIZE);
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "44px 32px 56px", display: "flex", flexDirection: "column", gap: 20 }}>
+    <main className="ib-page" style={{ "--ib-page-gap": "20px" } as React.CSSProperties}>
         <PageHeader
           title="練習履歴"
           subtitle={!loading && sessions.length > 0 ? `${sessions.length}回の練習を積み重ねてきました` : "これまでの模擬面接の記録"}
@@ -55,7 +55,7 @@ export default function HistoryPage() {
         </section>
 
         {!loading && totalPages > 1 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, flexWrap: "wrap" }}>
             <button className="ib-page-btn" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={cur === 0}>‹</button>
             {Array.from({ length: totalPages }, (_, i) => (
               <button key={i} className={`ib-page-btn${i === cur ? " ib-page-btn-active" : ""}`} onClick={() => setPage(i)}>{i + 1}</button>

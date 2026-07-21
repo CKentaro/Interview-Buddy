@@ -41,25 +41,22 @@ export default function HomePage() {
   const firstName = (user?.name ?? "").split(" ")[0] || user?.name || "";
 
   return (
-    <main style={{ maxWidth: 1120, margin: "0 auto", padding: "44px 32px 56px", display: "flex", flexDirection: "column", gap: 24 }}>
+    <main className="ib-page">
         {/* greeting — a normal element on the Home screen */}
         <div className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ fontSize: 12.5, color: muted(55), fontFamily: "var(--font-jp)" }}>{todayStr()}</div>
-          <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-jp)", letterSpacing: "-0.01em", lineHeight: 1.3 }}>
+          <div className="ib-greeting">
             {computeGreeting()}{firstName && `、${firstName}さん`}
           </div>
         </div>
 
         {/* primary CTA */}
-        <section
-          className="ib-section card elev-md"
-          style={{ padding: 24, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}
-        >
+        <section className="ib-section card elev-md ib-split" style={{ padding: 24, flexWrap: "wrap" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 220 }}>
             <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-jp)" }}>今日の練習を始めましょう</div>
             <div style={{ fontSize: 13, color: muted(65), fontFamily: "var(--font-jp)" }}>5分からでも、ひとつ質問に答えるだけでも大丈夫です。</div>
           </div>
-          <Link href="/interview/setup" className="btn btn-primary" style={{ padding: "14px 28px", fontSize: 15, gap: 10, whiteSpace: "nowrap" }}>
+          <Link href="/interview/setup" className="btn btn-primary ib-btn-wide" style={{ padding: "14px 28px", fontSize: 15, gap: 10 }}>
             <LcMessage size={18} />
             <span>新しい面接練習をはじめる</span>
           </Link>
