@@ -1,3 +1,4 @@
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import type { FeedbackQARow } from "../services/buildFeedbackContext";
 
 /**
@@ -13,4 +14,10 @@ export interface IFeedbackContextProvider {
    * 深掘り質問も含む（主軸は親 MainQuestion の primaryAxis を引き継ぐ想定）。
    */
   loadQARows(sessionId: string): Promise<FeedbackQARow[]>;
+
+  /**
+   * セッションの面接官タイプを取得する（未設定・不正値は既定タイプに解決する）。
+   * フィードバックの口調・厳しさの切り替えに使う。
+   */
+  loadInterviewerType(sessionId: string): Promise<InterviewerType>;
 }

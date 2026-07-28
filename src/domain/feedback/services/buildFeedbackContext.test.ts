@@ -18,13 +18,13 @@ describe("buildFeedbackContext", () => {
       },
     ];
 
-    const ctx = buildFeedbackContext(rows);
+    const ctx = buildFeedbackContext(rows, "neutral");
 
     expect(ctx.allQAPairs).toEqual([{ questionText: "Q1", answerText: "A1" }]);
   });
 
   it("軸別は常に4軸ぶん返す（該当回答が無い軸は空配列）", () => {
-    const ctx = buildFeedbackContext([]);
+    const ctx = buildFeedbackContext([], "neutral");
 
     expect(ctx.axisQAPairs.map((a) => a.axis)).toEqual([
       EvaluationAxis.REPRODUCIBILITY,
@@ -55,7 +55,7 @@ describe("buildFeedbackContext", () => {
       },
     ];
 
-    const ctx = buildFeedbackContext(rows);
+    const ctx = buildFeedbackContext(rows, "neutral");
 
     const repro = ctx.axisQAPairs.find(
       (a) => a.axis === EvaluationAxis.REPRODUCIBILITY,
@@ -67,12 +67,18 @@ describe("buildFeedbackContext", () => {
     expect(ctx.allQAPairs).toHaveLength(3);
   });
 
+  it("interviewerType をそのままコンテキストへ引き継ぐ", () => {
+    const ctx = buildFeedbackContext([], "strict");
+
+    expect(ctx.interviewerType).toBe("strict");
+  });
+
   it("primaryAxis が null の回答は軸別に含めないが総評には含める", () => {
     const rows: FeedbackQARow[] = [
       { primaryAxis: null, questionText: "Q", answerText: "A" },
     ];
 
-    const ctx = buildFeedbackContext(rows);
+    const ctx = buildFeedbackContext(rows, "neutral");
 
     expect(ctx.axisQAPairs.every((a) => a.pairs.length === 0)).toBe(true);
     expect(ctx.allQAPairs).toEqual([{ questionText: "Q", answerText: "A" }]);
