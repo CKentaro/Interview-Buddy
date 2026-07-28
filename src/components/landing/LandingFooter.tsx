@@ -2,7 +2,7 @@ const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transp
 
 export function LandingFooter() {
   return (
-    <footer style={{ borderTop: "1px solid var(--color-divider)", padding: "24px 32px" }}>
+    <footer className="ib-footer">
       <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
         <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 14 }}>interview buddy</div>
         <nav style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>

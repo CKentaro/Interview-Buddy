@@ -24,22 +24,9 @@ const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transp
 /** 1 セッションの総質問数 = 本質問 5 問 × (本質問 1 + 深掘り最大 2)。 */
 const TOTAL_QUESTION_COUNT = MAIN_QUESTION_COUNT * (1 + MAX_FOLLOW_UP_DEPTH);
 
-/* ── 入力フォームの寸法 ──
-   textarea は 3 行までは高さが伸び、それ以降はフォーム内スクロールに切り替える。
-   高さ計算に使うため、実際に適用する font-size / line-height / padding と必ず揃えること。 */
-const TA_FONT_SIZE = 15;
-const TA_LINE_HEIGHT = 1.5;
-const TA_PADDING_Y = 12;
-const TA_MAX_ROWS = 3;
-const TA_ROW_HEIGHT = TA_FONT_SIZE * TA_LINE_HEIGHT;
-const TA_MAX_HEIGHT = TA_ROW_HEIGHT * TA_MAX_ROWS + TA_PADDING_Y * 2;
-const COMPOSER_PADDING_Y = 8;
-/** フォーム下のヒント行（gap 込み）。 */
-const COMPOSER_HINT_SPACE = 26;
-const FOOTER_PADDING_BOTTOM = 24;
-/** 3 行まで伸びたフォームが収まる高さ。main はこの分だけ下を空けておく。 */
-const COMPOSER_MAX_SPACE =
-  TA_MAX_HEIGHT + COMPOSER_PADDING_Y * 2 + COMPOSER_HINT_SPACE + FOOTER_PADDING_BOTTOM;
+/* 入力フォームの寸法（何行で打ち止めるか・main が下に空ける余白）は
+   globals.css の .ib-live 側のカスタムプロパティが持っている。画面幅で変わるため、
+   ここでは持たず、伸縮の上限は算出済みの max-height を読んで使う。 */
 
 /** 残りこの文字数を切ったら文字数カウンタを警告色にする。 */
 const ANSWER_LENGTH_WARN_AT = MAX_ANSWER_LENGTH - 200;
@@ -432,12 +419,14 @@ export default function LivePage() {
     if (status === "ready") taRef.current?.focus();
   }, [status, question?.id]);
 
-  // Resize textarea（3 行を超えたら伸ばさず、フォーム内スクロールに任せる）
+  // Resize textarea（上限を超えたら伸ばさず、フォーム内スクロールに任せる）。
+  // 上限は CSS が算出した max-height をそのまま読む（画面幅で変わるため）。
   useEffect(() => {
-    if (taRef.current) {
-      taRef.current.style.height = "auto";
-      taRef.current.style.height = Math.min(taRef.current.scrollHeight, TA_MAX_HEIGHT) + "px";
-    }
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const max = parseFloat(getComputedStyle(ta).maxHeight);
+    ta.style.height = (Number.isNaN(max) ? ta.scrollHeight : Math.min(ta.scrollHeight, max)) + "px";
   }, [text]);
 
   const canSend = text.trim().length > 0;
@@ -553,23 +542,22 @@ export default function LivePage() {
   const nearLimit = text.length >= ANSWER_LENGTH_WARN_AT;
 
   return (
-    <div style={{ position: "relative", height: "100dvh", display: "flex", flexDirection: "column", background: "var(--color-bg)" }}>
+    <div className="ib-live">
       {/* minimal top bar */}
-      <header style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, whiteSpace: "nowrap" }}>
+      <header className="ib-live-bar">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, whiteSpace: "nowrap" }}>
           <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>
             質問 {questionNumber} / {TOTAL_QUESTION_COUNT} 問
           </span>
-          <span aria-hidden style={{ width: 96, height: 4, borderRadius: 2, background: "var(--color-neutral-300)", overflow: "hidden" }}>
+          <span aria-hidden className="ib-live-progress">
             <span style={{ display: "block", height: "100%", width: `${(questionNumber / TOTAL_QUESTION_COUNT) * 100}%`, background: "var(--color-accent-500)", borderRadius: 2, transition: "width .4s ease" }} />
           </span>
           <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>
-        <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12 }}>面接を中断する</button>
+        <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12, flex: "none" }}>面接を中断する</button>
       </header>
 
-      {/* main：フォームが伸びても再レイアウトされないよう、下にフォームの最大高ぶんを常に確保する */}
-      <main style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: `24px 24px ${COMPOSER_MAX_SPACE}px`, gap: 24 }}>
+      <main className="ib-live-main">
         <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
           {voiceLimited && (
             <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
@@ -580,7 +568,7 @@ export default function LivePage() {
             </div>
           )}
 
-          <h2 key={question.id} style={{ margin: 0, fontSize: 24, lineHeight: 1.6, textAlign: "center", fontFamily: "var(--font-jp)", animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
+          <h2 key={question.id} className="ib-live-question" style={{ animation: "ib-fade-up .4s ease both" }}>{question.text}</h2>
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <AIPresence state={aiState} />
@@ -598,18 +586,18 @@ export default function LivePage() {
       </main>
 
       {/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */}
-      <footer style={{ position: "absolute", left: 0, right: 0, bottom: 0, display: "flex", justifyContent: "center", padding: "0 24px 24px", pointerEvents: "none" }}>
+      <footer className="ib-live-footer">
         <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
-          <div style={{ width: "100%", display: "flex", alignItems: "flex-end", gap: 6, background: "var(--color-bg)", boxShadow: "var(--shadow-md)", borderRadius: "var(--radius-lg)", padding: "8px 8px 8px 22px" }}>
+          <div className="ib-composer">
             <textarea
               ref={taRef}
+              className="ib-composer-input"
               rows={1}
               value={text}
               maxLength={MAX_ANSWER_LENGTH}
               onChange={(e) => handleManualEdit(e.target.value)}
               placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
               onKeyDown={handleKeyDown}
-              style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", resize: "none", font: "inherit", fontFamily: "var(--font-jp)", fontSize: TA_FONT_SIZE, lineHeight: TA_LINE_HEIGHT, padding: `${TA_PADDING_Y}px 0`, maxHeight: TA_MAX_HEIGHT, overflowY: "auto", color: "var(--color-text)" }}
             />
             {sttSupported && (
               <button

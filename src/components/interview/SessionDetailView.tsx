@@ -66,7 +66,7 @@ function AxisCard({ axis, label, comment }: { axis: string; label: string; comme
           <div style={{ fontSize: 11.5, color: muted(50), fontFamily: "var(--font-jp)" }}>{meta.caption}</div>
         </div>
       </div>
-      <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.85, paddingLeft: 38, fontFamily: "var(--font-jp)" }}>{comment}</p>
+      <p className="ib-axis-comment" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.85, fontFamily: "var(--font-jp)" }}>{comment}</p>
     </div>
   );
 }

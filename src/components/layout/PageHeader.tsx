@@ -33,7 +33,7 @@ export function PageHeader({ title, subtitle, back, right }: PageHeaderProps) {
             <span>{back.label}</span>
           </Link>
         )}
-        <h1 style={{ fontSize: 26, margin: 0, lineHeight: 1.25 }}>{title}</h1>
+        <h1 className="ib-page-title">{title}</h1>
         {subtitle && (
           <p style={{ margin: "6px 0 0", fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>{subtitle}</p>
         )}

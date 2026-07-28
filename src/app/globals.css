@@ -94,6 +94,9 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
+/* 横向きにしたときに iOS が本文を勝手に拡大するのを防ぐ */
+html { -webkit-text-size-adjust: 100%; }
+
 body {
   background: var(--color-bg);
   color: var(--color-text);
@@ -103,6 +106,8 @@ body {
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "palt" 1;
+  /* 企業名や URL など切れ目のない長い文字列で横スクロールが出ないようにする */
+  overflow-wrap: break-word;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -326,6 +331,168 @@ textarea.input { min-height: 90px; resize: vertical; }
 .ib-page-btn-active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
 /* ════════════════════════════════════════════════════════════════════════
+   App shell — サイドバー + 本文。--bp-md 未満ではサイドバーを画面外の
+   ドロワーへ切り替え、代わりに上部バー（.ib-topbar）を出す。
+   実際の切り替えは末尾の Responsive セクションにまとめてある。
+   ════════════════════════════════════════════════════════════════════════ */
+.ib-shell { display: flex; min-height: 100vh; min-height: 100dvh; }
+.ib-shell-main { flex: 1; min-width: 0; }
+
+.ib-sidebar {
+  width: 232px; flex: none;
+  display: flex; flex-direction: column;
+  padding: 16px 0;
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+  position: sticky; top: 0; height: 100vh; z-index: 20;
+  transition: width .2s ease;
+}
+.ib-side-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 16px 16px; margin-bottom: 12px;
+}
+.ib-side-brand { min-width: 0; }
+.ib-side-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; flex: 1; }
+.ib-side-foot { padding: 12px 8px 0; border-top: 1px solid var(--color-divider); margin-top: 12px; }
+.ib-nav-link-profile { gap: 8px; margin-bottom: 4px; }
+/* .btn-ghost の文字色・.btn の字送りを、サイドバー用に戻す */
+.ib-side-logout { font-size: 13px; gap: 8px; color: var(--color-text); }
+
+/* サイドバー頭の小さなアイコンボタン（開閉トグル・ドロワーを閉じる） */
+.ib-side-btn {
+  all: unset; cursor: pointer; flex: none;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  transition: background .15s ease, color .15s ease;
+}
+.ib-side-btn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
+
+/* モバイル専用の枠。既定では出さず、Responsive セクションで現れる。 */
+.ib-topbar { display: none; }
+.ib-drawer-backdrop { display: none; }
+.ib-side-close { display: none; }
+
+/* ── 本文の共通コンテナ ──
+   幅は --ib-page-max、行間は --ib-page-gap で各ページから上書きする。 */
+.ib-page {
+  width: 100%;
+  max-width: var(--ib-page-max, 1120px);
+  margin: 0 auto;
+  padding: 44px 32px 56px;
+  display: flex; flex-direction: column;
+  gap: var(--ib-page-gap, 24px);
+}
+
+/* 横並びの行。狭い画面では縦積みにする（Responsive セクション） */
+.ib-split { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* 並んだアクションボタン。狭い画面では縦積み＋全幅にする */
+.ib-actions { display: flex; gap: 12px; }
+/* 画面端からの余白。狭い画面で詰める。 */
+.ib-inset { padding-inline: 32px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Landing — 幅・段組みはすべてここが持つ。inline style に置くと
+   メディアクエリから外せなくなるため、レイアウトは CSS 側に寄せてある。
+   ════════════════════════════════════════════════════════════════════════ */
+.ib-landing-inner { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+.ib-band { max-width: 1120px; margin: 0 auto; padding: 32px; }
+.ib-footer { border-top: 1px solid var(--color-divider); padding: 24px 32px; }
+
+.ib-hero {
+  max-width: 1120px; margin: 0 auto; padding: 32px 32px 24px;
+  display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center;
+}
+.ib-hero-title { font-size: 44px; line-height: 1.25; margin: 0; max-width: 16ch; font-family: var(--font-jp); }
+.ib-how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ib-how-title { font-size: 30px; margin: 8px 0 24px; font-family: var(--font-jp); }
+.ib-cta-card { width: 100%; padding: 24px 32px; gap: 12px; background: var(--color-surface); }
+.ib-cta-title { margin: 0; font-size: 24px; font-family: var(--font-jp); }
+
+/* 見出し（PageHeader の h1 / ホームの挨拶） */
+.ib-page-title { font-size: 26px; margin: 0; line-height: 1.25; }
+.ib-greeting { font-size: 28px; font-weight: 700; font-family: var(--font-jp); letter-spacing: -0.01em; line-height: 1.3; }
+
+/* セッションカード右側のメタ情報 */
+.ib-session-meta { display: flex; align-items: center; gap: 16px; flex: none; }
+.ib-session-stats { text-align: right; }
+
+/* プロフィールの数値カード */
+.ib-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 16px; }
+
+/* 面接設定ウィザード */
+.ib-setup-main { min-height: 100vh; display: flex; justify-content: center; padding: 36px 32px 56px; }
+.ib-setup-card { padding: 24px; gap: 16px; }
+
+/* 評価軸カード：本文をアイコンの右端に揃える字下げ */
+.ib-axis-comment { padding-left: 38px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Live interview — 画面の高さに収める 1 画面レイアウト。
+   入力フォームの寸法は下のカスタムプロパティが唯一の出どころで、
+   フォームの最大高（--ta-max-h）も本文が空けておく余白（--composer-space）も
+   そこから導出する。JS 側は算出済みの max-height を読むだけにしてあるので、
+   ここを変えれば自動で追従する。
+   ════════════════════════════════════════════════════════════════════════ */
+.ib-live {
+  --ta-font: 15px;
+  --ta-lh: 1.5;
+  --ta-pad-y: 12px;
+  --ta-rows: 3;             /* これを超えたら伸ばさず、フォーム内スクロールに任せる */
+  --composer-pad-y: 8px;
+  --composer-hint: 26px;    /* フォーム下のヒント行（gap 込み） */
+  --footer-pad-b: 24px;
+  --ta-max-h: calc(var(--ta-font) * var(--ta-lh) * var(--ta-rows) + var(--ta-pad-y) * 2);
+  --composer-space: calc(
+    var(--ta-max-h) + var(--composer-pad-y) * 2 + var(--composer-hint) + var(--footer-pad-b)
+  );
+
+  position: relative;
+  height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--color-bg);
+}
+.ib-live-bar {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 16px 24px;
+}
+.ib-live-progress {
+  width: 96px; height: 4px; flex: none; border-radius: 2px;
+  background: var(--color-neutral-300); overflow: hidden;
+}
+/* main：フォームが伸びても再レイアウトされないよう、下にフォームの最大高ぶんを常に確保する */
+.ib-live-main {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 24px;
+  padding: 24px 24px var(--composer-space);
+}
+.ib-live-question { margin: 0; font-size: 24px; line-height: 1.6; text-align: center; font-family: var(--font-jp); }
+/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */
+.ib-live-footer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; justify-content: center;
+  padding: 0 24px calc(var(--footer-pad-b) + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.ib-composer {
+  width: 100%; display: flex; align-items: flex-end; gap: 6px;
+  background: var(--color-bg); box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+  padding: var(--composer-pad-y) var(--composer-pad-y) var(--composer-pad-y) 22px;
+}
+.ib-composer-input {
+  flex: 1; min-width: 0;
+  border: none; outline: none; background: transparent; resize: none;
+  font: inherit; font-family: var(--font-jp);
+  font-size: var(--ta-font); line-height: var(--ta-lh);
+  padding: var(--ta-pad-y) 0;
+  max-height: var(--ta-max-h);
+  overflow-y: auto;
+  color: var(--color-text);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    Animations
    ════════════════════════════════════════════════════════════════════════ */
 @keyframes ib-spin { to { transform: rotate(360deg); } }
@@ -346,10 +513,117 @@ textarea.input { min-height: 90px; resize: vertical; }
 @keyframes thinking { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
 /* ════════════════════════════════════════════════════════════════════════
-   Responsive — collapse the landing's two-column layouts on narrow screens
+   Responsive
+
+   ── ブレークポイント ──
+     900px  タブレット : ランディングの 2 カラムを 1 カラムに落とす
+     768px  モバイル   : サイドバーを画面外ドロワー化し、上部バーを出す
+     560px  スマホ     : 横並びの行を縦積みにし、主要ボタンを全幅にする
+
+   レイアウトは各コンポーネントの inline style ではなく上の CSS クラスが
+   持っているので、ここは素直な上書きで済む（!important は不要）。
    ════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 860px) {
-  .ib-hero { grid-template-columns: 1fr !important; padding-top: 24px !important; }
-  .ib-hero h1 { font-size: 32px !important; }
-  .ib-how-grid { grid-template-columns: 1fr !important; }
+
+/* ── サイドバーの折りたたみはデスクトップだけの機能 ──
+   モバイルのドロワーは常に「開いた」見た目にしたいので、
+   折りたたみ用の指定はこのブレークポイントの中に閉じ込めてある。 */
+@media (min-width: 769px) {
+  .ib-sidebar[data-collapsed="true"] { width: 72px; }
+  .ib-sidebar[data-collapsed="true"] .ib-side-head { justify-content: center; padding: 0 0 16px; }
+  .ib-sidebar[data-collapsed="true"] .ib-side-brand,
+  .ib-sidebar[data-collapsed="true"] .ib-side-label { display: none; }
+  .ib-sidebar[data-collapsed="true"] .ib-nav-link { justify-content: center; gap: 0; padding: 10px 0; }
+  .ib-sidebar[data-collapsed="true"] .ib-side-logout { justify-content: center; gap: 0; }
+}
+
+/* ── 900px：タブレット ── */
+@media (max-width: 900px) {
+  .ib-hero { grid-template-columns: 1fr; padding-top: 24px; }
+  .ib-hero-title { font-size: 34px; max-width: none; }
+  .ib-how-grid { grid-template-columns: 1fr; }
+}
+
+/* ── 768px：モバイル。サイドバーをドロワーへ ── */
+@media (max-width: 768px) {
+  .ib-topbar {
+    display: flex; align-items: center; gap: 10px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    height: 56px; padding: 0 12px;
+    background: var(--color-bg); box-shadow: var(--shadow-sm);
+  }
+  .ib-shell-main { padding-top: 56px; }
+
+  .ib-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 268px; height: 100dvh; z-index: 60;
+    box-shadow: var(--shadow-lg);
+    visibility: hidden;
+    transform: translateX(-100%);
+    /* 閉じるときは滑り終わってから隠す（visibility は離散的に切り替わる） */
+    transition: transform .22s ease, visibility .22s ease;
+  }
+  .ib-sidebar[data-open="true"] { visibility: visible; transform: translateX(0); }
+  .ib-side-close { display: inline-flex; }
+  .ib-side-collapse { display: none; }
+  .ib-drawer-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 50;
+    background: color-mix(in srgb, var(--color-neutral-900) 42%, transparent);
+    animation: ib-fade .2s ease both;
+  }
+
+  .ib-page { padding: 28px 20px 40px; }
+  .ib-band { padding: 28px 20px; }
+  .ib-landing-inner { padding: 0 20px; }
+  .ib-footer { padding: 20px; }
+  .ib-cta-card { padding: 20px; }
+  .ib-inset { padding-inline: 20px; }
+  /* 上部バーのぶん、100vh のままだと画面からはみ出す */
+  .ib-setup-main { min-height: calc(100dvh - 56px); padding: 24px 20px 40px; }
+
+  /* iOS は 16px 未満の入力にフォーカスすると画面を勝手に拡大する */
+  .input { font-size: 16px; }
+}
+
+/* ── 560px：スマホ ── */
+@media (max-width: 560px) {
+  .ib-page { padding: 22px 16px 32px; }
+  .ib-band { padding: 22px 16px; }
+  .ib-landing-inner { padding: 0 16px; }
+  .ib-footer { padding: 18px 16px; }
+
+  .ib-hero { padding: 20px 16px; gap: 24px; }
+  .ib-hero-title { font-size: 28px; }
+  .ib-how-title { font-size: 24px; }
+  .ib-cta-title { font-size: 20px; }
+  .ib-page-title { font-size: 21px; }
+  .ib-greeting { font-size: 22px; }
+  .ib-inset { padding-inline: 16px; }
+  .ib-setup-main { padding: 20px 16px 32px; }
+  .ib-setup-card { padding: 18px; }
+  /* 評価軸カード：狭い画面ではアイコンぶんの字下げをやめ、本文に幅を使う */
+  .ib-axis-comment { padding-left: 0; }
+
+  /* 横並びの行を縦積みに。ボタンやタグが引き伸ばされないよう左寄せで畳む。 */
+  .ib-split { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .ib-actions { flex-direction: column; }
+  .ib-btn-wide { width: 100%; justify-content: center; }
+
+  /* セッションカード：メタ情報を本文の下へ回し、装飾の山括弧は落とす */
+  .ib-session-card { flex-wrap: wrap; gap: 10px; padding: 14px 16px; }
+  .ib-session-meta { width: 100%; justify-content: space-between; gap: 10px; }
+  .ib-session-stats { display: flex; gap: 10px; text-align: left; }
+  .ib-session-chevron { display: none; }
+
+  /* live：1 画面に収める。進捗バーは「質問 n / m 問」と同じ情報なので落とす。 */
+  .ib-live { --ta-font: 16px; --composer-pad-y: 6px; --footer-pad-b: 14px; }
+  .ib-live-bar { padding: 12px; gap: 8px; }
+  .ib-live-progress { display: none; }
+  .ib-live-question { font-size: 20px; }
+  .ib-live-main { padding-left: 16px; padding-right: 16px; }
+  .ib-live-footer { padding-left: 12px; padding-right: 12px; }
+  .ib-composer { padding-left: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ib-sidebar { transition: none; }
 }

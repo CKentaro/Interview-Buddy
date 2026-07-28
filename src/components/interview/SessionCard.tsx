@@ -54,8 +54,8 @@ export function SessionCard({ s, compact = false }: { s: SessionListItemResponse
         </div>
         <div style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>{metaLine(s, compact)}</div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 16, flex: "none" }}>
-        <div style={{ textAlign: "right", fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
+      <div className="ib-session-meta">
+        <div className="ib-session-stats" style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
           <div>{durationLabel(s.startedAt, s.endedAt)}</div>
           <div>質問 {s.questionCount}問</div>
         </div>

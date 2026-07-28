@@ -10,11 +10,11 @@ function IconTile({ children }: { children: React.ReactNode }) {
 
 export function Features() {
   return (
-    <section id="features" style={{ maxWidth: 1120, margin: "0 auto", padding: 32 }}>
+    <section id="features" className="ib-band">
       <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>how it works</span>
-      <h2 style={{ fontSize: 30, margin: "8px 0 24px", fontFamily: "var(--font-jp)" }}>interview buddy の仕組み</h2>
+      <h2 className="ib-how-title">interview buddy の仕組み</h2>
 
-      <div className="ib-how-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="ib-how-grid">
         <div className="card elev-sm" style={{ padding: 16, gap: 12 }}>
           <IconTile><LcMessage size={20} /></IconTile>
           <div className="card-title">面接シミュレーション</div>

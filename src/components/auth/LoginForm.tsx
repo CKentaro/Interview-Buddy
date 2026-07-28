@@ -25,7 +25,7 @@ export function LoginForm() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <header style={{ padding: "16px 32px" }}>
+      <header className="ib-inset" style={{ paddingBlock: 16 }}>
         <Link href="/" className="ib-link" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <LcArrowLeft size={15} />
           <span>トップに戻る</span>

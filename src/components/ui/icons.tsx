@@ -68,6 +68,12 @@ export function LcCompass({ size = 15 }: { size?: number }) {
 export function LcPanelLeft({ size = 18 }: { size?: number }) {
   return <Lucide size={size}><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" /></Lucide>;
 }
+export function LcMenu({ size = 20 }: { size?: number }) {
+  return <Lucide size={size}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></Lucide>;
+}
+export function LcClose({ size = 20 }: { size?: number }) {
+  return <Lucide size={size}><line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" /></Lucide>;
+}
 /* Google の G マークをここに置いてはいけない。ブランディング ガイドラインが自作・改変・
    単色化を禁じているため、公式アセットから切り出した public/google-g.svg を
    <img> で読み込むこと。→ .btn-google（globals.css） */
