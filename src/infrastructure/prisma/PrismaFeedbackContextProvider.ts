@@ -1,5 +1,9 @@
 import type { IFeedbackContextProvider } from "@/domain/feedback/ports/IFeedbackContextProvider";
 import type { FeedbackQARow } from "@/domain/feedback/services/buildFeedbackContext";
+import {
+  resolveInterviewerType,
+  type InterviewerType,
+} from "@/domain/interview/model/InterviewerType.vo";
 import { prisma } from "@/lib/prisma";
 import { AXIS_TO_DOMAIN } from "./evaluationAxisMapping";
 
@@ -24,5 +28,13 @@ export class PrismaFeedbackContextProvider implements IFeedbackContextProvider {
       questionText: q.content,
       answerText: q.answer?.content ?? null,
     }));
+  }
+
+  async loadInterviewerType(sessionId: string): Promise<InterviewerType> {
+    const session = await prisma.interviewSession.findUnique({
+      where: { id: sessionId },
+      select: { interviewerType: true },
+    });
+    return resolveInterviewerType(session?.interviewerType);
   }
 }

@@ -1,4 +1,5 @@
 import type { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 
 /** 評価対象となる 1 問分の質問と回答の組。 */
 export type FeedbackQAPair = {
@@ -18,6 +19,8 @@ export type FeedbackGenerationContext = {
   axisQAPairs: AxisQAPairs[];
   /** セッション全体の質問・回答（総評の生成に使う）。 */
   allQAPairs: FeedbackQAPair[];
+  /** 面接を担当した面接官タイプ。フィードバックの口調・厳しさへ反映する。 */
+  interviewerType: InterviewerType;
 };
 
 /** 生成された 1 軸分の講評。 */

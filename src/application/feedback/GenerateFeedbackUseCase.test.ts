@@ -40,6 +40,7 @@ function setup(overrides?: {
         answerText: "A",
       },
     ]),
+    loadInterviewerType: vi.fn().mockResolvedValue("strict"),
   };
   const service: IFeedbackService = {
     generate: overrides?.generate ?? vi.fn().mockResolvedValue(generated),
@@ -73,6 +74,10 @@ describe("GenerateFeedbackUseCase", () => {
     await useCase.execute("sess-1");
 
     expect(service.generate).toHaveBeenCalledOnce();
+    // セッションの面接官タイプが生成コンテキストへ引き継がれる。
+    expect(service.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ interviewerType: "strict" }),
+    );
     expect(repository.save).toHaveBeenCalledWith({
       sessionId: "sess-1",
       overallComment: "総評",

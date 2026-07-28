@@ -26,8 +26,11 @@ export class GenerateFeedbackUseCase {
       return;
     }
 
-    const rows = await this.contextProvider.loadQARows(sessionId);
-    const context = buildFeedbackContext(rows);
+    const [rows, interviewerType] = await Promise.all([
+      this.contextProvider.loadQARows(sessionId),
+      this.contextProvider.loadInterviewerType(sessionId),
+    ]);
+    const context = buildFeedbackContext(rows, interviewerType);
 
     // 軸別4＋総評を生成。1つでも失敗すれば例外が伝搬し、以降の save は実行されない。
     const generated = await this.feedbackService.generate(context);

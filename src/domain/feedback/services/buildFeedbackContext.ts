@@ -1,4 +1,5 @@
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import type {
   FeedbackGenerationContext,
   FeedbackQAPair,
@@ -29,6 +30,7 @@ const ALL_AXES: readonly EvaluationAxis[] = [
  */
 export function buildFeedbackContext(
   rows: FeedbackQARow[],
+  interviewerType: InterviewerType,
 ): FeedbackGenerationContext {
   const byAxis = new Map<EvaluationAxis, FeedbackQAPair[]>(
     ALL_AXES.map((axis) => [axis, []]),
@@ -57,5 +59,6 @@ export function buildFeedbackContext(
       pairs: byAxis.get(axis) ?? [],
     })),
     allQAPairs,
+    interviewerType,
   };
 }
