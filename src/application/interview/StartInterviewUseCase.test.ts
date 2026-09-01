@@ -12,6 +12,18 @@ import type {
   QuestionAnswerPair,
   SaveAnswerAndCreateFollowUpQuestionResult,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
+import type { JobPostingContext } from "@/domain/interview/model/JobPosting.vo";
+import {
+  EmploymentKind,
+  JobPostingPageKind,
+} from "@/domain/interview/model/JobPosting.vo";
+import type { SelectedQuestion } from "@/domain/interview/model/SelectedQuestion.vo";
+import { MainQuestionSource } from "@/domain/interview/model/SelectedQuestion.vo";
+import { MAIN_QUESTION_AXIS_PLAN } from "@/domain/interview/model/mainQuestionPlan";
+import type {
+  IMainQuestionGenerationService,
+  MainQuestionGenerationContext,
+} from "@/domain/interview/ports/IMainQuestionGenerationService";
 import type { IOpeningSpeechService } from "@/domain/interview/ports/IOpeningSpeechService";
 import type { IQuestionBankProvider } from "@/domain/interview/ports/IQuestionBankProvider";
 import { StartInterviewUseCase } from "./StartInterviewUseCase";
@@ -169,6 +181,39 @@ class FakeOpeningSpeechService implements IOpeningSpeechService {
   }
 }
 
+const jobPosting: JobPostingContext = {
+  pageKind: JobPostingPageKind.SINGLE_JOB_POSTING,
+  usableAsContext: true,
+  companyName: "株式会社テスト",
+  industry: { major: "IT・インターネット", minor: "ソフトウェア・SaaS" },
+  job: { major: "技術系", minor: "Webエンジニア" },
+  employmentKind: EmploymentKind.NEW_GRADUATE,
+  businessSummary: "テスト事業",
+  jobSummary: "テスト職務",
+  keyPoints: ["特徴1"],
+};
+
+class FakeMainQuestionGenerationService implements IMainQuestionGenerationService {
+  receivedContext: MainQuestionGenerationContext | null = null;
+  constructor(private readonly behavior: "success" | "failure") {}
+
+  async generate(
+    context: MainQuestionGenerationContext,
+  ): Promise<SelectedQuestion[]> {
+    this.receivedContext = context;
+    if (this.behavior === "failure") {
+      throw new Error("generation failed");
+    }
+    return context.plan.map((entry) => ({
+      bankId: null,
+      source: MainQuestionSource.GENERATED,
+      displayText: `求人由来の質問 ${entry.displayOrder}`,
+      axis: entry.axis,
+      displayOrder: entry.displayOrder,
+    }));
+  }
+}
+
 describe("StartInterviewUseCase", () => {
   it("質問バンクから本質問5問を選定し、セッション作成へ渡す", async () => {
     const repository = new FakeInterviewSessionRepository();
@@ -290,5 +335,112 @@ describe("StartInterviewUseCase", () => {
 
     expect(result.voiceEnabled).toBe(false);
     expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(0);
+  });
+
+  it("求人由来の生成を要求すると、生成された本質問でセッションを作る", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(true);
+    expect(generationService.receivedContext?.jobPosting).toBe(jobPosting);
+    // 軸構成はバンク抽選と同じ計画を渡す（フィードバックの 4 軸集計が前提にしている）。
+    expect(generationService.receivedContext?.plan).toBe(MAIN_QUESTION_AXIS_PLAN);
+    expect(repository.createSessionInput?.selectedQuestions.map((q) => q.displayText))
+      .toEqual([1, 2, 3, 4, 5].map((n) => `求人由来の質問 ${n}`));
+  });
+
+  it("生成に失敗してもバンク抽選へ落として面接を開始できる", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      new FakeMainQuestionGenerationService("failure"),
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+    expect(
+      repository.createSessionInput?.selectedQuestions.every(
+        (q) => q.source === MainQuestionSource.BANK,
+      ),
+    ).toBe(true);
+  });
+
+  // 解析結果はクライアント経由で戻るため、usableAsContext を書き換えた
+  // リクエストでも生成へ進ませない（ページ種別と突き合わせて弾く）。
+  it("ページ種別と矛盾する解析結果（エラーページなのに使える）では生成を試みない", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting: {
+        ...jobPosting,
+        pageKind: JobPostingPageKind.ERROR_OR_LOGIN,
+        usableAsContext: true,
+      },
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+  });
+
+  it("文脈として使えない求人（一覧ページ等）では生成を試みない", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting: { ...jobPosting, usableAsContext: false },
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+  });
+
+  it("生成を要求しなければバンク抽選を使う", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({ userId: "user-1", jobPosting });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
   });
 });

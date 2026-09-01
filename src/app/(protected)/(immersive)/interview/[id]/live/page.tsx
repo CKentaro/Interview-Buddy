@@ -45,6 +45,8 @@ type StoredSession = {
   questionNumber: number;
   interviewerType?: string;
   voiceLimited?: boolean;
+  /** 求人由来の質問生成を要求したが失敗し、質問バンクの出題に切り替わったか。 */
+  questionsFellBackToBank?: boolean;
 };
 
 /* ── Gemini TTS ── */
@@ -238,6 +240,7 @@ export default function LivePage() {
   const [interviewerType, setInterviewerType] = useState<InterviewerType>(DEFAULT_INTERVIEWER_TYPE);
   // 音声を要求したのに本日の枠が尽きていた場合のみ true（テキスト進行への切り替えを通知する）。
   const [voiceLimited, setVoiceLimited] = useState(false);
+  const [questionsFellBackToBank, setQuestionsFellBackToBank] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
 
   // 質問の読み上げ中は true。面接官アバターの口パクに使う。
@@ -363,6 +366,7 @@ export default function LivePage() {
       setVoiceEnabled(stored.voiceEnabled);
       setInterviewerType(storedType);
       setVoiceLimited(stored.voiceLimited ?? false);
+      setQuestionsFellBackToBank(stored.questionsFellBackToBank ?? false);
       setQuestionNumber(stored.questionNumber);
 
       if (!stored.voiceEnabled) {
@@ -485,6 +489,7 @@ export default function LivePage() {
         voiceEnabled,
         interviewerType,
         voiceLimited,
+        questionsFellBackToBank,
       }));
       window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -564,6 +569,15 @@ export default function LivePage() {
               <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
               <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
                 本日の音声利用枠（1日{MAX_VOICE_SESSIONS_PER_DAY}回）は使用済みのため、テキストのみで進行します。
+              </div>
+            </div>
+          )}
+
+          {questionsFellBackToBank && (
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+                求人内容からの質問生成に失敗したため、通常の質問で進行します。
               </div>
             </div>
           )}

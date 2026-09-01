@@ -186,6 +186,7 @@ describe("POST /api/sessions", () => {
       sessionId: "session-1",
       createdAt: "2026-07-07T00:00:00.000Z",
       voiceEnabled: false,
+      questionsGeneratedFromJobPosting: false,
       firstQuestion: {
         id: "question-1",
         type: "MAIN",

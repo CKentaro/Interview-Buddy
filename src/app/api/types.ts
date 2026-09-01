@@ -60,6 +60,55 @@ export type UserMeResponse = {
   lastSessionAt: string | null;
 };
 
+// ─── 求人ページ解析（UC: 面接設定の自動入力）───────────────────
+export type AnalyzeJobPostingRequest = {
+  url: string;
+};
+
+/** 解析対象ページの種別。ドメインの JobPostingPageKind と値を一致させる。 */
+export type JobPostingPageKindResponse =
+  | "SINGLE_JOB_POSTING"
+  | "JOB_LIST"
+  | "COMPANY_RECRUIT_PAGE"
+  | "ERROR_OR_LOGIN"
+  | "OTHER";
+
+export type EmploymentKindResponse = "NEW_GRADUATE" | "MID_CAREER" | "UNKNOWN";
+
+/**
+ * 解析に失敗した理由。UI はこれで文言を出し分け、いずれの場合も
+ * 手入力での面接開始は妨げない。
+ */
+export type JobPostingFailureReason =
+  | "INVALID_URL"
+  | "UNREACHABLE"
+  | "UNSUPPORTED_CONTENT"
+  | "EMPTY_CONTENT"
+  | "EXTRACTION_FAILED";
+
+export type AnalyzeJobPostingResponse =
+  | {
+      status: "failed";
+      reason: JobPostingFailureReason;
+    }
+  | {
+      status: "analyzed";
+      finalUrl: string;
+      pageKind: JobPostingPageKindResponse;
+      /** 面接質問の生成に使える情報が揃っているか。 */
+      usableAsContext: boolean;
+      employmentKind: EmploymentKindResponse;
+      /** 以下はフォームへ反映する値。抽出できなかった項目は null。 */
+      companyName: string | null;
+      industryMajor: string | null;
+      industryMinor: string | null;
+      jobMajor: string | null;
+      jobMinor: string | null;
+      businessSummary: string | null;
+      jobSummary: string | null;
+      keyPoints: string[];
+    };
+
 // ─── Session create ───────────────────────────────────────────
 export type CreateSessionRequest = {
   companyName?: string;
@@ -70,6 +119,13 @@ export type CreateSessionRequest = {
   selectionStage?: string;
   interviewerType?: InterviewerType;
   voiceEnabled?: boolean;
+  /**
+   * 求人ページの解析結果。本質問を求人由来で生成する場合に渡す。
+   * POST /api/job-postings/analyze の analyzed レスポンスをそのまま入れる想定。
+   */
+  jobPosting?: Extract<AnalyzeJobPostingResponse, { status: "analyzed" }>;
+  /** 本質問を求人由来の生成に切り替えるか。 */
+  generateQuestionsFromJobPosting?: boolean;
 };
 
 export type QuestionResponse = {
@@ -89,6 +145,11 @@ export type SessionResponse = {
    * クライアントはこの値で TTS 実行可否・フォールバック通知を判断する。
    */
   voiceEnabled: boolean;
+  /**
+   * 本質問が求人由来の生成に切り替わったか。要求しても生成に失敗した場合は
+   * false（バンク抽選で面接は開始される）。
+   */
+  questionsGeneratedFromJobPosting: boolean;
 };
 
 // UC03: 回答送信 & 深掘り質問生成

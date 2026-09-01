@@ -5,33 +5,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
-import type { SessionResponse, VoiceUsageResponse } from "@/app/api/types";
+import {
+  INDUSTRY_TAXONOMY,
+  ROLE_TAXONOMY,
+} from "@/domain/interview/model/careerTaxonomy";
+import type {
+  AnalyzeJobPostingResponse,
+  JobPostingFailureReason,
+  JobPostingPageKindResponse,
+  SessionResponse,
+  VoiceUsageResponse,
+} from "@/app/api/types";
+
+// 分類マスタはドメイン側の単一の真実源を参照する（求人票の抽出でも同じ集合を使う）。
+const INDUSTRY: Record<string, readonly string[]> = INDUSTRY_TAXONOMY;
+const ROLE: Record<string, readonly string[]> = ROLE_TAXONOMY;
 
 const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 /* ── Static data ── */
-const INDUSTRY: Record<string, string[]> = {
-  "メーカー・商社": ["自動車", "電気・電子", "機械", "化学・素材", "食品・飲料", "医薬品・医療機器", "家具・インテリア", "衣料・アパレル", "総合商社", "専門商社"],
-  "金融・保険": ["銀行", "証券", "保険", "クレジットカード・信販", "リース", "資産運用・投資顧問"],
-  "IT・インターネット": ["SIer・システム開発", "Web・インターネットサービス", "ソフトウェア・SaaS", "通信・インフラ", "ハードウェア・半導体", "ゲーム", "セキュリティ", "AI・データ", "EC・広告"],
-  "流通・小売・サービス": ["百貨店", "スーパーマーケット", "コンビニエンスストア", "専門店（ファッション）", "専門店（電気・電子）", "通信販売・Eコマース", "ホテル・旅行", "飲食業", "理美容・エステ", "教育・研修"],
-  "建築・不動産": ["ゼネコン・建築", "ハウスメーカー", "設計・建築", "不動産開発", "不動産仲介・管理"],
-  メディカル: ["病院・クリニック", "製薬会社", "医療機器メーカー", "看護・介護施設", "医療関連サービス"],
-  "マスコミ・メディア": ["新聞", "テレビ", "ラジオ", "出版", "広告代理店", "インターネットメディア"],
-  "コンサルティング・士業": ["経営コンサルティング", "ITコンサルティング", "人事コンサルティング", "弁護士", "公認会計士", "税理士"],
-  "運輸・物流": ["航空", "鉄道", "海運", "陸運・運送", "物流・倉庫"],
-  エネルギー: ["電力", "ガス", "石油・石炭", "再生エネルギー"],
-  エンターテインメント: ["ゲーム・アミューズメント", "映画・映像", "音楽・音響", "スポーツ"],
-};
-const ROLE: Record<string, string[]> = {
-  技術系: ["ソフトウェアエンジニア", "システムエンジニア", "ネットワークエンジニア", "クラウドエンジニア", "データベースエンジニア", "セキュリティエンジニア", "モバイルアプリ開発者", "Webエンジニア", "フルスタックエンジニア", "DevOpsエンジニア", "MLエンジニア", "データサイエンティスト", "組み込みエンジニア", "その他エンジニア"],
-  事務系: ["総務", "人事", "経理", "財務", "法務", "広報", "経営企画", "マーケ", "営業企画"],
-  営業: ["法人営業", "個人営業", "海外営業", "技術営業", "インサイドセールス", "カスタマーサクセス"],
-  クリエイティブ: ["Webデザイナー", "グラフィックデザイナー", "UIデザイナー", "UXデザイナー", "イラストレーター", "ゲームデザイナー"],
-  コンサルティング: ["経営コンサル", "ITコンサル", "人事コンサル", "財務コンサル"],
-  医療: ["医師", "看護師", "薬剤師", "臨床検査技師", "理学療法士", "作業療法士"],
-  士業: ["弁護士", "公認会計士", "税理士", "司法書士", "行政書士", "社会保険労務士", "弁理士"],
-};
 const PHASES = [
   { key: "first", label: "一次面接", desc: "人柄や基本的な適性を、対話を通じて確認します。" },
   { key: "second", label: "二次面接", desc: "これまでの経験を深掘りし、実務との適合を見ます。" },
@@ -42,8 +34,28 @@ const INTERVIEWERS = [
   { key: "neutral", label: INTERVIEWER_TYPE_LABEL.neutral, desc: "淡々とした、標準的な進行です。" },
   { key: "strict", label: INTERVIEWER_TYPE_LABEL.strict, desc: "圧迫気味の追及を再現します。" },
 ];
+/** 解析に失敗した理由ごとの案内文。いずれの場合も手入力で先へ進める。 */
+const FAILURE_MESSAGE: Record<JobPostingFailureReason, string> = {
+  INVALID_URL: "URL の形式が正しくないか、指定できないアドレスです。",
+  UNREACHABLE: "ページに接続できませんでした。サイト側が自動での読み込みを許可していない場合があります。",
+  UNSUPPORTED_CONTENT: "HTML ページではないため読み込めませんでした。",
+  EMPTY_CONTENT: "ページの本文を取得できませんでした。ログインが必要なページの可能性があります。",
+  EXTRACTION_FAILED: "ページの解析に失敗しました。時間をおいて試すか、そのまま手入力で進めてください。",
+};
+
+/** 読み取れたページ種別ごとの補足。何がどこまで埋まったかを利用者に伝える。 */
+const PAGE_KIND_MESSAGE: Record<JobPostingPageKindResponse, string> = {
+  SINGLE_JOB_POSTING: "求人票として読み取りました。",
+  JOB_LIST: "求人一覧ページのようです。個別の求人ページの URL だと、より詳しく読み取れます。",
+  COMPANY_RECRUIT_PAGE: "企業の採用ページとして読み取りました。職種は個別の求人ページか、手入力で指定してください。",
+  ERROR_OR_LOGIN: "求人の内容を読み取れませんでした。ログインが必要なページの可能性があります。",
+  OTHER: "求人ページとして読み取れませんでした。",
+};
+
 const STEP_TITLES = ["志望業界", "志望企業・職種", "選考フェーズ", "面接の雰囲気", "確認"];
 const STEP_TOTAL = STEP_TITLES.length;
+/** 確認ステップの添字。編集から戻る先。 */
+const CONFIRM_STEP = STEP_TOTAL - 1;
 
 type FormData = {
   industryMajor: string; industryMinor: string;
@@ -76,6 +88,16 @@ export default function SetupPage() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
   const [voiceQuota, setVoiceQuota] = useState<VoiceUsageResponse | null>(null);
+  const [jobUrl, setJobUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  /** 解析結果。null は未解析。failed も保持して理由を表示する。 */
+  const [analysis, setAnalysis] = useState<AnalyzeJobPostingResponse | null>(null);
+  const [useGeneratedQuestions, setUseGeneratedQuestions] = useState(false);
+  /**
+   * 確認ステップの「編集」から来ているか。
+   * true の間は、そのステップを終えると残りのステップを辿らず確認へ直接戻る。
+   */
+  const [editingFromConfirm, setEditingFromConfirm] = useState(false);
   const [form, setForm] = useState<FormData>({
     industryMajor: "", industryMinor: "", companyName: "",
     roleMajor: "", roleMinor: "", phase: "", interviewerType: "", voiceOn: false,
@@ -98,10 +120,57 @@ export default function SetupPage() {
   }, []);
 
   const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
+  const analyzed = analysis?.status === "analyzed" ? analysis : null;
+  /** 求人由来の質問生成を選べるか（解析済みかつ材料が十分なときだけ）。 */
+  const canGenerateQuestions = analyzed?.usableAsContext === true;
+
+  /**
+   * 求人ページを解析し、埋められた項目だけフォームへ反映する。
+   * 抽出できなかった項目は既存の入力値を残し、ユーザーが手で埋める。
+   */
+  const analyzeJobUrl = async () => {
+    const url = jobUrl.trim();
+    if (url === "" || analyzing) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const res = await fetch("/api/job-postings/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const result = (await res.json()) as AnalyzeJobPostingResponse;
+      setAnalysis(result);
+      if (result.status === "analyzed") {
+        setForm((f) => ({
+          ...f,
+          companyName: result.companyName ?? f.companyName,
+          // 業界・職種は大小がそろって初めてフォームの選択として成立する。
+          ...(result.industryMajor && result.industryMinor
+            ? { industryMajor: result.industryMajor, industryMinor: result.industryMinor }
+            : {}),
+          ...(result.jobMajor && result.jobMinor
+            ? { roleMajor: result.jobMajor, roleMinor: result.jobMinor }
+            : {}),
+        }));
+        setUseGeneratedQuestions(result.usableAsContext);
+      } else {
+        setUseGeneratedQuestions(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setAnalysis({ status: "failed", reason: "EXTRACTION_FAILED" });
+      setUseGeneratedQuestions(false);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const patch = (p: Partial<FormData>) => { setForm((f) => ({ ...f, ...p })); setShowHint(false); };
 
   const isStepValid = (s: number): boolean => {
+    // 求人 URL の読み込みは任意。読み込めなくても手入力で先へ進める。
     if (s === 0) return !!form.industryMajor && !!form.industryMinor;
     if (s === 1) return !!form.companyName.trim() && !!form.roleMajor && !!form.roleMinor;
     if (s === 2) return !!form.phase;
@@ -112,7 +181,22 @@ export default function SetupPage() {
   const goBack = () => { setStep((s) => Math.max(0, s - 1)); setShowHint(false); };
   const goNext = () => {
     if (!isStepValid(step)) { setShowHint(true); return; }
-    setStep((s) => Math.min(STEP_TOTAL - 1, s + 1)); setShowHint(false);
+    setStep((s) => Math.min(CONFIRM_STEP, s + 1)); setShowHint(false);
+  };
+
+  /** 確認ステップの「編集」。そのステップへ移動し、完了後は確認へ直接戻す。 */
+  const startEditing = (target: number) => {
+    setEditingFromConfirm(true);
+    setStep(target);
+    setShowHint(false);
+  };
+
+  /** 編集を終えて確認ステップへ戻る。未入力があればその場で知らせる。 */
+  const finishEditing = () => {
+    if (!isStepValid(step)) { setShowHint(true); return; }
+    setEditingFromConfirm(false);
+    setStep(CONFIRM_STEP);
+    setShowHint(false);
   };
 
   const fillSample = () => setForm({
@@ -136,6 +220,8 @@ export default function SetupPage() {
           selectionStage: form.phase,
           interviewerType: form.interviewerType,
           voiceEnabled: form.voiceOn,
+          ...(analyzed ? { jobPosting: analyzed } : {}),
+          generateQuestionsFromJobPosting: canGenerateQuestions && useGeneratedQuestions,
         }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
@@ -149,6 +235,9 @@ export default function SetupPage() {
         interviewerType: form.interviewerType,
         // 音声を要求したのに枠超過で無効化された場合のみ、ライブ画面で通知する。
         voiceLimited: form.voiceOn && !session.voiceEnabled,
+        // 生成を要求したのに失敗してバンク出題に落ちた場合のみ、ライブ画面で通知する。
+        questionsFellBackToBank:
+          canGenerateQuestions && useGeneratedQuestions && !session.questionsGeneratedFromJobPosting,
       }));
       router.push(`/interview/${session.sessionId}/live`);
     } catch (e) {
@@ -184,7 +273,9 @@ export default function SetupPage() {
           {/* progress */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: muted(55), fontFamily: "var(--font-jp)" }}>ステップ {step + 1} / {STEP_TOTAL}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: muted(55), fontFamily: "var(--font-jp)" }}>
+                {editingFromConfirm ? "内容を編集しています" : `ステップ ${step + 1} / ${STEP_TOTAL}`}
+              </div>
               <div style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{STEP_TITLES[step]}</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
@@ -197,6 +288,87 @@ export default function SetupPage() {
               ))}
             </div>
           </div>
+
+          {/* 求人 URL からの自動入力（任意）と、その下の手入力は別のカードに分ける。 */}
+          {step === 0 && (
+            <div className="card elev-md ib-section ib-setup-card">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>求人ページの URL から自動入力する</div>
+                  <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)", lineHeight: 1.7 }}>
+                    求人票や企業の採用ページの URL を読み込むと、企業名・業界・職種を自動で入力します。
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="input"
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://example.com/jobs/123"
+                    value={jobUrl}
+                    onChange={(e) => setJobUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void analyzeJobUrl(); } }}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void analyzeJobUrl()}
+                    disabled={analyzing || jobUrl.trim() === ""}
+                    style={{ flex: "none", gap: 8 }}
+                  >
+                    {analyzing ? (
+                      <>
+                        <span style={{ width: 13, height: 13, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent-500)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+                        <span>読み込み中</span>
+                      </>
+                    ) : (
+                      <span>読み込む</span>
+                    )}
+                  </button>
+                </div>
+
+                {analysis?.status === "failed" && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
+                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
+                    <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+                      {FAILURE_MESSAGE[analysis.reason]}
+                    </div>
+                  </div>
+                )}
+
+                {analyzed && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "14px 16px" }}>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.7, color: muted(70), fontFamily: "var(--font-jp)" }}>
+                      {PAGE_KIND_MESSAGE[analyzed.pageKind]}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[
+                        { label: "企業名", value: analyzed.companyName },
+                        { label: "業界", value: analyzed.industryMajor && analyzed.industryMinor ? `${analyzed.industryMajor} ／ ${analyzed.industryMinor}` : null },
+                        { label: "職種", value: analyzed.jobMajor && analyzed.jobMinor ? `${analyzed.jobMajor} ／ ${analyzed.jobMinor}` : null },
+                      ].map((row) => (
+                        <div key={row.label} style={{ display: "flex", gap: 12, fontSize: 12.5, fontFamily: "var(--font-jp)" }}>
+                          <span style={{ flex: "none", width: 48, color: muted(55) }}>{row.label}</span>
+                          <span style={{ color: row.value ? "var(--color-text)" : muted(45) }}>
+                            {row.value ?? "読み取れませんでした（手入力してください）"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
+              <span style={{ flex: "none", fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>手動で入力する</span>
+              <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
+            </div>
+          )}
 
           <div className="card elev-md ib-section ib-setup-card" key={step}>
             {step === 0 && (
@@ -292,6 +464,33 @@ export default function SetupPage() {
                     <span style={{ position: "absolute", top: 2, left: form.voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", transition: "left .15s ease" }} />
                   </button>
                 </div>
+                {/* 求人 URL を読み込めたときだけ、出題方法の選択肢を出す。 */}
+                {canGenerateQuestions && (
+                  <>
+                    <div className="hr" style={{ margin: 0 }} />
+                    <div className="ib-split">
+                      <div>
+                        <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>読み込んだ求人の内容から質問をつくる</div>
+                        <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)", lineHeight: 1.7 }}>
+                          オフにすると、質問バンクから出題します。評価の4軸と質問数は、どちらでも変わりません。
+                        </div>
+                        {analyzed?.companyName && (
+                          <div style={{ marginTop: 4, fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
+                            読み込み済み：{analyzed.companyName}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUseGeneratedQuestions((v) => !v)}
+                        aria-pressed={useGeneratedQuestions}
+                        style={{ all: "unset", cursor: "pointer", width: 44, height: 26, borderRadius: 999, background: useGeneratedQuestions ? "var(--color-accent-500)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                      >
+                        <span style={{ position: "absolute", top: 2, left: useGeneratedQuestions ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", transition: "left .15s ease" }} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -308,7 +507,7 @@ export default function SetupPage() {
                         <div style={{ fontSize: 11, color: muted(55), fontFamily: "var(--font-jp)" }}>{row.label}</div>
                         <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{row.value}</div>
                       </div>
-                      <button className="btn btn-ghost" onClick={() => setStep(row.goto)} style={{ fontSize: 12 }}>編集</button>
+                      <button className="btn btn-ghost" onClick={() => startEditing(row.goto)} style={{ fontSize: 12 }}>編集</button>
                     </div>
                   ))}
                 </div>
@@ -336,12 +535,24 @@ export default function SetupPage() {
           </div>
 
           {/* nav */}
-          {step < 4 && (
+          {step < CONFIRM_STEP && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <button className="btn btn-secondary" onClick={goBack} disabled={step === 0} style={step === 0 ? { opacity: 0, pointerEvents: "none" } : undefined}>戻る</button>
+              {/* 編集中は残りのステップを辿らせないため、戻る導線を出さない。 */}
+              <button
+                className="btn btn-secondary"
+                onClick={goBack}
+                disabled={step === 0 || editingFromConfirm}
+                style={step === 0 || editingFromConfirm ? { opacity: 0, pointerEvents: "none" } : undefined}
+              >
+                戻る
+              </button>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {showHint && <span style={{ fontSize: 12, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>すべての項目を選択してください</span>}
-                <button className="btn btn-primary" onClick={goNext}>次へ</button>
+                {editingFromConfirm ? (
+                  <button className="btn btn-primary" onClick={finishEditing}>編集を完了して確認に戻る</button>
+                ) : (
+                  <button className="btn btn-primary" onClick={goNext}>次へ</button>
+                )}
               </div>
             </div>
           )}
