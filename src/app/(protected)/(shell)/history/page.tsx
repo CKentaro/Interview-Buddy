@@ -7,7 +7,6 @@ import { SessionCard } from "@/components/interview/SessionCard";
 import { LcInbox } from "@/components/ui/icons";
 import type { SessionListItemResponse, SessionListResponse } from "@/app/api/types";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 const PAGE_SIZE = 5;
 
 export default function HistoryPage() {
@@ -38,13 +37,13 @@ export default function HistoryPage() {
           {loading ? (
             <div className="ib-list-state">
               <div style={{ width: 22, height: 22, border: "2px solid var(--color-divider)", borderTopColor: "var(--color-accent)", borderRadius: "50%", animation: "ib-spin 1s linear infinite" }} />
-              <div style={{ fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>練習履歴を読み込んでいます…</div>
+              <div style={{ fontSize: 13, color: "var(--ink-3)" }}>練習履歴を読み込んでいます…</div>
             </div>
           ) : sessions.length === 0 ? (
             <div className="ib-list-state">
               <span style={{ color: "var(--color-neutral-500)" }}><LcInbox size={32} /></span>
-              <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>まだ練習の記録がありません</div>
-              <div style={{ fontSize: 12.5, color: muted(55), maxWidth: "34ch", fontFamily: "var(--font-jp)" }}>最初の面接練習をはじめると、ここに記録が並びます。</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>まだ練習の記録がありません</div>
+              <div style={{ fontSize: 12.5, color: "var(--ink-3)", maxWidth: "34ch" }}>最初の面接練習をはじめると、ここに記録が並びます。</div>
               <Link href="/interview/setup" className="btn btn-primary" style={{ marginTop: 6 }}>はじめての練習をする</Link>
             </div>
           ) : (

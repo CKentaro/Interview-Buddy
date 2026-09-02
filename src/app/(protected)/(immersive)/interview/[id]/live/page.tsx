@@ -17,7 +17,6 @@ import {
   type InterviewerType,
 } from "@/domain/interview/model/InterviewerType.vo";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 /** 旧セッションストレージに総数が無い場合は、従来の普通（15問）として扱う。 */
 const DEFAULT_TOTAL_QUESTION_COUNT = 15;
@@ -199,7 +198,7 @@ function AIPresence({ state }: { state: "idle" | "thinking" | "speaking" }) {
   return (
     <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {state === "thinking" && (
-        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
+        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-neutral-300)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
       )}
       <span aria-hidden style={{ position: "relative", width: 72, height: 72 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -567,11 +566,11 @@ export default function LivePage() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--color-bg)", gap: 16, padding: 24, textAlign: "center" }}>
         <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
-          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
+          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-neutral-300)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
+          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-neutral-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--font-jp)" }}>面接の準備をしています…</div>
-        <p style={{ margin: 0, fontSize: 13, color: muted(55), maxWidth: "34ch", fontFamily: "var(--font-jp)" }}>AI が最初の質問を用意しています。もう少しだけお待ちください。</p>
+        <div style={{ fontSize: 16, fontWeight: 500 }}>面接の準備をしています…</div>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", maxWidth: "34ch" }}>AI が最初の質問を用意しています。もう少しだけお待ちください。</p>
       </div>
     );
   }
@@ -584,23 +583,23 @@ export default function LivePage() {
       {/* minimal top bar */}
       <header className="ib-live-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, whiteSpace: "nowrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>
             質問 {questionNumber} / {totalQuestionCount} 問
           </span>
           <span aria-hidden className="ib-live-progress">
-            <span style={{ display: "block", height: "100%", width: `${Math.min(100, (questionNumber / totalQuestionCount) * 100)}%`, background: "var(--color-accent-500)", borderRadius: 2, transition: "width .4s ease" }} />
+            <span style={{ display: "block", height: "100%", width: `${Math.min(100, (questionNumber / totalQuestionCount) * 100)}%`, background: "var(--color-accent)", borderRadius: 2, transition: "width .4s ease" }} />
           </span>
-          <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>
         <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12, flex: "none" }}>面接を中断する</button>
       </header>
 
       <main className="ib-live-main">
-        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
+        <div style={{ width: "min(720px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
           {voiceLimited && (
             <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-              <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
                 本日の音声利用枠（1日{MAX_VOICE_SESSIONS_PER_DAY}回）は使用済みのため、テキストのみで進行します。
               </div>
             </div>
@@ -608,8 +607,8 @@ export default function LivePage() {
 
           {questionsFellBackToBank && (
             <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-              <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
                 求人内容からの質問生成に失敗したため、通常の質問で進行します。
               </div>
             </div>
@@ -619,13 +618,13 @@ export default function LivePage() {
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <AIPresence state={aiState} />
-            <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-2)" }}>{aiStateLabel}</div>
           </div>
 
           {error && (
-            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-              <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-              <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, flex: 1, fontFamily: "var(--font-jp)" }}>{error}</div>
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7, flex: 1 }}>{error}</div>
               <button className="btn btn-ghost" onClick={() => setError("")} style={{ fontSize: 12, flex: "none" }}>閉じる</button>
             </div>
           )}
@@ -634,7 +633,7 @@ export default function LivePage() {
 
       {/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */}
       <footer className="ib-live-footer">
-        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
+        <div style={{ width: "min(780px, 100%)", display: "flex", flexDirection: "column", gap: 8, pointerEvents: "auto" }}>
           <div className="ib-composer">
             <textarea
               ref={taRef}
@@ -643,7 +642,7 @@ export default function LivePage() {
               value={text}
               maxLength={MAX_ANSWER_LENGTH}
               onChange={(e) => handleManualEdit(e.target.value)}
-              placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
+              placeholder={recording ? "聞き取っています…" : "回答を入力してください"}
               onKeyDown={handleKeyDown}
             />
             {sttSupported && (
@@ -652,7 +651,7 @@ export default function LivePage() {
                 onClick={toggleRecording}
                 title={recording ? "停止" : "マイクで入力"}
                 aria-pressed={recording}
-                style={{ all: "unset", cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-accent-600)" : muted(55), transition: "background .15s ease" }}
+                style={{ all: "unset", cursor: "pointer", flex: "none", width: "var(--composer-btn)", height: "var(--composer-btn)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-danger)" : "var(--ink-3)", transition: "background .15s ease" }}
               >
                 <LcMic size={19} />
               </button>
@@ -661,7 +660,7 @@ export default function LivePage() {
               type="button"
               onClick={handleSend}
               disabled={!sendActive}
-              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: 44, height: 44, borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
+              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: "var(--composer-send)", height: "var(--composer-send)", borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
             >
               {sending ? (
                 <span style={{ width: 15, height: 15, border: "2px solid color-mix(in srgb, #fff 40%, transparent)", borderTopColor: "#fff", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
@@ -674,17 +673,20 @@ export default function LivePage() {
           {/* ヒント行：左に操作ヒント／録音状態、右に文字数カウンタ */}
           <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             {recording ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-600)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
-                <span>録音中です。もう一度マイクをタップすると停止します。</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: "var(--color-danger)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-danger)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
+                <span>録音中です。もう一度タップで停止します。</span>
               </div>
             ) : (
-              <div style={{ fontSize: 11.5, color: muted(40), fontFamily: "var(--font-jp)" }}>
+              <div className="ib-kbd-hint">
                 Shift + Enter で改行・Enter で送信
               </div>
             )}
             {text.length > 0 && (
-              <div style={{ flex: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-jp)", color: nearLimit ? "var(--color-accent-700)" : muted(40) }}>
+              <div
+                className={`ib-char-count${nearLimit ? " ib-char-count-near" : ""}`}
+                style={{ flex: "none", marginLeft: "auto", color: nearLimit ? "var(--color-danger)" : "var(--ink-4)" }}
+              >
                 {text.length} / {MAX_ANSWER_LENGTH}
               </div>
             )}
@@ -692,8 +694,8 @@ export default function LivePage() {
 
           {!sttSupported && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-              <div style={{ fontSize: 12, lineHeight: 1.6, color: muted(55), fontFamily: "var(--font-jp)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--ink-3)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
             </div>
           )}
         </div>

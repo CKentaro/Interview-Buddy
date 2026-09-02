@@ -4,7 +4,6 @@ import { useState } from "react";
 import { signOut } from "next-auth/react";
 import { LcAlert } from "@/components/ui/icons";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 export function DeleteAccountSection({ userId }: { userId: string }) {
   const [confirming, setConfirming] = useState(false);
@@ -27,16 +26,16 @@ export function DeleteAccountSection({ userId }: { userId: string }) {
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>アカウントの削除</h3>
+      <h3 style={{ margin: 0, fontSize: 16 }}>アカウントの削除</h3>
       <div
-        className="card elev-sm ib-split"
-        style={{ padding: 16, border: "1px solid var(--warn-line)" }}
+        className="card ib-split"
+        style={{ padding: 16, border: "1px solid var(--color-danger-line)" }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ color: "var(--warn)", display: "flex" }}><LcAlert size={20} /></span>
+          <span style={{ color: "var(--color-danger)", display: "flex" }}><LcAlert size={20} /></span>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>アカウントを削除する</div>
-            <div style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>アカウントを削除する</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)" }}>
               練習履歴とフィードバックもすべて削除されます。取り消せません。
             </div>
           </div>
@@ -44,14 +43,14 @@ export function DeleteAccountSection({ userId }: { userId: string }) {
         <button
           className="btn btn-secondary"
           onClick={() => setConfirming(true)}
-          style={{ color: "var(--warn)", borderColor: "var(--warn-line)", flex: "none" }}
+          style={{ color: "var(--color-danger)", borderColor: "var(--color-danger-line)", flex: "none" }}
         >
           削除する
         </button>
       </div>
 
       {error && (
-        <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--warn)", fontFamily: "var(--font-jp)" }}>{error}</p>
+        <p role="alert" style={{ margin: 0, fontSize: 12.5, color: "var(--color-danger)" }}>{error}</p>
       )}
 
       {confirming && (
