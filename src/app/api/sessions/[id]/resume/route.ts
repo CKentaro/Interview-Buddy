@@ -23,6 +23,8 @@ export async function POST(
       status: "IN_PROGRESS",
       voiceEnabled: result.voiceEnabled,
       interviewerType: result.interviewerType,
+      interviewLength: result.interviewLength,
+      totalQuestionCount: result.totalQuestionCount,
       questionNumber: result.questionNumber,
       currentQuestion: {
         id: result.currentQuestion.id,

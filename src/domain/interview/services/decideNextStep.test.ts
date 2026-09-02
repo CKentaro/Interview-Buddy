@@ -19,21 +19,21 @@ describe("decideNextStep", () => {
   describe("depthCount が上限未満なら深掘りを続ける（followup）", () => {
     it("depthCount=0 → followup", () => {
       expect(
-        decideNextStep({ answeredQuestionDepthCount: 0, nextMainQuestion: nextMain }),
+        decideNextStep({ answeredQuestionDepthCount: 0, nextMainQuestion: nextMain, maxFollowUpDepth: 2 }),
       ).toEqual({ action: "followup" });
     });
 
     // 境界の内側（=1）。PR #10 の実装はここで next_main へ進めてしまうが、
-    // 「深掘りは最大2回」の仕様では depthCount=1 はまだ followup が正しい。
+    // 普通（深掘り2回）では depthCount=1 はまだ followup が正しい。
     it("depthCount=1（上限の1つ手前）→ followup", () => {
       expect(
-        decideNextStep({ answeredQuestionDepthCount: 1, nextMainQuestion: nextMain }),
+        decideNextStep({ answeredQuestionDepthCount: 1, nextMainQuestion: nextMain, maxFollowUpDepth: 2 }),
       ).toEqual({ action: "followup" });
     });
 
     it("負の depthCount でも followup（堅牢性）", () => {
       expect(
-        decideNextStep({ answeredQuestionDepthCount: -1, nextMainQuestion: null }),
+        decideNextStep({ answeredQuestionDepthCount: -1, nextMainQuestion: null, maxFollowUpDepth: 2 }),
       ).toEqual({ action: "followup" });
     });
   });
@@ -44,6 +44,7 @@ describe("decideNextStep", () => {
         decideNextStep({
           answeredQuestionDepthCount: MAX_FOLLOW_UP_DEPTH,
           nextMainQuestion: nextMain,
+          maxFollowUpDepth: MAX_FOLLOW_UP_DEPTH,
         }),
       ).toEqual({ action: "next_main", nextMainQuestion: nextMain });
     });
@@ -53,14 +54,25 @@ describe("decideNextStep", () => {
         decideNextStep({
           answeredQuestionDepthCount: MAX_FOLLOW_UP_DEPTH,
           nextMainQuestion: null,
+          maxFollowUpDepth: MAX_FOLLOW_UP_DEPTH,
         }),
       ).toEqual({ action: "complete" });
     });
 
     it("depthCount が上限を超えても次メインがあれば next_main", () => {
       expect(
-        decideNextStep({ answeredQuestionDepthCount: 5, nextMainQuestion: nextMain }),
+        decideNextStep({ answeredQuestionDepthCount: 5, nextMainQuestion: nextMain, maxFollowUpDepth: 2 }),
       ).toEqual({ action: "next_main", nextMainQuestion: nextMain });
+    });
+
+    it("長めでは depthCount=2 でも深掘りを続ける", () => {
+      expect(
+        decideNextStep({
+          answeredQuestionDepthCount: 2,
+          nextMainQuestion: nextMain,
+          maxFollowUpDepth: 3,
+        }),
+      ).toEqual({ action: "followup" });
     });
   });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import type {
   IInterviewSessionLifecycleRepository,
   ResumableSessionSummary,
@@ -24,6 +25,7 @@ function session(status: SessionStatus): InterviewSession {
         : null,
     status,
     voiceEnabled: true,
+    interviewLength: InterviewLength.STANDARD,
     companyName: "Example Inc.",
     industryMajor: null,
     industryMinor: null,
@@ -58,6 +60,15 @@ class FakeLifecycleRepository implements IInterviewSessionLifecycleRepository {
         parentQuestionId: "main-1",
         answer: null,
       },
+      ...[2, 3, 4].map((displayOrder) => ({
+        id: `main-${displayOrder}`,
+        type: QuestionType.MAIN,
+        content: `質問${displayOrder}`,
+        displayOrder,
+        primaryAxis: null,
+        parentQuestionId: null,
+        answer: null,
+      })),
     ],
   };
   pausedSessions: ResumableSessionSummary[] = [];
@@ -115,6 +126,7 @@ describe("ResumeInterviewUseCase", () => {
       sessionId: "session-1",
       voiceEnabled: true,
       interviewerType: "friendly",
+      totalQuestionCount: 12,
       currentQuestion: { id: "follow-1" },
       questionNumber: 2,
     });

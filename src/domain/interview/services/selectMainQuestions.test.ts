@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { BankAxis, QuestionBank } from "../model/QuestionBank.vo";
-import { MAIN_QUESTION_AXIS_PLAN } from "../model/mainQuestionPlan";
+import {
+  LONG_MAIN_QUESTION_AXIS_PLAN,
+  MAIN_QUESTION_AXIS_PLAN,
+  SHORT_MAIN_QUESTION_AXIS_PLAN,
+} from "../model/mainQuestionPlan";
 import { MainQuestionSource } from "../model/SelectedQuestion.vo";
 import {
   InsufficientQuestionBankError,
@@ -48,13 +52,30 @@ describe("selectMainQuestions", () => {
     expect(result.every((q) => q.bankId !== null)).toBe(true);
   });
 
-  it("再現性は重複しない2問を選ぶ", () => {
-    const result = selectMainQuestions(bank);
-    const reproducibility = result.filter(
-      (q) => q.axis === EvaluationAxis.REPRODUCIBILITY,
-    );
+  it("短めの計画なら4軸を1問ずつ返す", () => {
+    const result = selectMainQuestions(bank, {
+      plan: SHORT_MAIN_QUESTION_AXIS_PLAN,
+    });
 
-    expect(new Set(reproducibility.map((q) => q.bankId)).size).toBe(2);
+    expect(result).toHaveLength(4);
+    expect(result.map((question) => question.axis)).toEqual(
+      SHORT_MAIN_QUESTION_AXIS_PLAN.map((entry) => entry.axis),
+    );
+  });
+
+  it("長めの再現性と価値観は、それぞれ重複しない2問を選ぶ", () => {
+    const result = selectMainQuestions(bank, {
+      plan: LONG_MAIN_QUESTION_AXIS_PLAN,
+    });
+    const repeatedAxes = [
+      EvaluationAxis.REPRODUCIBILITY,
+      EvaluationAxis.VALUES_JUDGMENT,
+    ];
+
+    for (const repeatedAxis of repeatedAxes) {
+      const questions = result.filter((q) => q.axis === repeatedAxis);
+      expect(new Set(questions.map((q) => q.bankId)).size).toBe(2);
+    }
   });
 
   it("乱数源を注入すれば決定的（同じ乱数源なら同じ結果）になる", () => {
@@ -68,8 +89,8 @@ describe("selectMainQuestions", () => {
       ...bank,
       reproducibility: axis(EvaluationAxis.REPRODUCIBILITY, 1),
     };
-    expect(() => selectMainQuestions(thinBank)).toThrow(
-      InsufficientQuestionBankError,
-    );
+    expect(() =>
+      selectMainQuestions(thinBank, { plan: LONG_MAIN_QUESTION_AXIS_PLAN }),
+    ).toThrow(InsufficientQuestionBankError);
   });
 });

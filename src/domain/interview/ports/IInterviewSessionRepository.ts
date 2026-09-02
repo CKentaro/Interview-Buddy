@@ -1,5 +1,6 @@
 import type { Answer } from "../model/Answer.entity";
 import type { InterviewSession } from "../model/InterviewSession.entity";
+import type { InterviewLength } from "../model/InterviewLength.vo";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { Question } from "../model/Question.entity";
 import type { QuestionType } from "../model/QuestionType.vo";
@@ -62,6 +63,8 @@ export type CreateSessionInput = {
   interviewerType?: string;
   /** AI 音声読み上げ(TTS)を使う面接か（TTS ゲートの判定に永続化する）。 */
   voiceEnabled?: boolean;
+  /** 本質問数と深掘り上限を決める固定の長さ設定。 */
+  interviewLength: InterviewLength;
   selectedQuestions: SelectedQuestion[];
 };
 

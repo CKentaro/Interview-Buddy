@@ -38,7 +38,7 @@ src/
 │   │   │   └── EvaluationAxis.vo.ts # 評価軸そのもの（ドメイン独自 enum）
 │   │   ├── services/         # ドメインサービス（純粋なビジネスロジック）
 │   │   │   ├── decideNextStep.ts     # 回答後の分岐判定（+ .test.ts）
-│   │   │   └── selectMainQuestions.ts # 本質問5問の抽選（+ .test.ts）
+│   │   │   └── selectMainQuestions.ts # 長さ設定に応じた本質問の抽選（+ .test.ts）
 │   │   └── ports/            # 契約（インターフェース。実装はインフラ層）
 │   │       ├── IInterviewSessionRepository.ts # セッション永続化の契約
 │   │       ├── IFollowUpQuestionService.ts    # 深掘り質問生成の契約
@@ -215,8 +215,9 @@ export async function POST(): Promise<Response> {
 | Answer | アンサー | ユーザーが回答した内容 |
 | Feedback | フィードバック | Geminiが生成する評価レポート |
 | AxisFeedback | アクシスフィードバック | 4軸それぞれの講評コメント（＝ EvaluationAxis「軸そのもの」に対する評価。語順が似た EvaluationAxis と混同しないこと） |
-| MainQuestion | メインクエスチョン | セッションで出題される大問（5問固定） |
-| FollowUpQuestion | フォローアップクエスチョン | 大問への深掘り質問（最大2回） |
+| InterviewLength | インタビュー・レングス | 固定の質問構成。短め・普通・長めから選ぶ |
+| MainQuestion | メインクエスチョン | セッションで出題される大問（長さ設定により4問または6問） |
+| FollowUpQuestion | フォローアップクエスチョン | 大問への深掘り質問（長さ設定により1回または2回） |
 | EvaluationAxis | イバリュエーションアクシス | 評価の4軸そのもの（再現性・価値観/判断軸・自己認識・世界観/知的好奇心）を表す enum。各軸への講評は AxisFeedback |
 
 ---

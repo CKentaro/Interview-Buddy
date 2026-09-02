@@ -5,6 +5,7 @@ import type { InterviewSession } from "@/domain/interview/model/InterviewSession
 import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import type {
   CreateFollowUpQuestionInput,
   CreateSessionResult,
@@ -53,6 +54,16 @@ const secondFollowUpQuestion: Question = {
   parentQuestionId: mainQuestion.id,
 };
 
+const firstFollowUpQuestion: Question = {
+  id: "follow-1",
+  type: QuestionType.FOLLOW_UP,
+  content: "そのとき、あなた自身は何をしましたか。",
+  displayOrder: 2,
+  depthCount: 1,
+  primaryAxis: EvaluationAxis.REPRODUCIBILITY,
+  parentQuestionId: mainQuestion.id,
+};
+
 const nextMainQuestion: Question = {
   id: "main-2",
   type: QuestionType.MAIN,
@@ -71,6 +82,7 @@ function createSession(questions: Question[]): InterviewSession {
     endedAt: null,
     status: SessionStatus.IN_PROGRESS,
     voiceEnabled: false,
+    interviewLength: InterviewLength.STANDARD,
     companyName: null,
     industryMajor: null,
     industryMinor: null,
@@ -374,7 +386,7 @@ describe("AnswerQuestionUseCase", () => {
     expect(repository.saveAnswerAndCompleteSessionCalls).toHaveLength(0);
   });
 
-  it("next_main: 厳しめでも共通の深掘り上限到達後に次の MainQuestion へ進む", async () => {
+  it("next_main: 普通では2回目の深掘り回答後に次の MainQuestion へ進む", async () => {
     const repository = new FakeInterviewSessionRepository();
     if (repository.session) {
       repository.session.interviewerType = "strict";
@@ -414,6 +426,49 @@ describe("AnswerQuestionUseCase", () => {
         interviewerType: "strict",
       },
     ]);
+  });
+
+  it("next_main: 短めでは1回目の深掘り回答後に次の MainQuestion へ進む", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    if (repository.session) {
+      repository.session.interviewLength = InterviewLength.SHORT;
+    }
+    repository.questions.set(firstFollowUpQuestion.id, firstFollowUpQuestion);
+    const useCase = createUseCase(repository);
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      sessionId: "session-1",
+      questionId: firstFollowUpQuestion.id,
+      answerText: "自分で改善案を作り、チームへ提案しました。",
+    });
+
+    expect(result).toMatchObject({
+      action: "next_main",
+      nextQuestion: nextMainQuestion,
+    });
+  });
+
+  it("next_main: 長めも2回目の深掘り回答後に次の MainQuestion へ進む", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    if (repository.session) {
+      repository.session.interviewLength = InterviewLength.LONG;
+    }
+    const followUpService = new FakeFollowUpQuestionService();
+    const useCase = createUseCase(repository, followUpService);
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      sessionId: "session-1",
+      questionId: secondFollowUpQuestion.id,
+      answerText: "別のチームでも同じ方法を試しました。",
+    });
+
+    expect(result).toMatchObject({
+      action: "next_main",
+      nextQuestion: nextMainQuestion,
+    });
+    expect(followUpService.calls).toHaveLength(0);
   });
 
   it("complete: 次の MainQuestion がなければ回答保存とセッション終了を transaction で行う", async () => {

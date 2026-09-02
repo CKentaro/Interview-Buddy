@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
 import type {
   CreateSessionInput,
@@ -56,6 +57,9 @@ vi.mock("@/infrastructure/prisma/PrismaInterviewSessionRepository", () => ({
           userId: input.userId,
           startedAt: new Date("2026-07-07T00:00:00.000Z"),
           endedAt: null,
+          status: "IN_PROGRESS",
+          voiceEnabled: input.voiceEnabled ?? false,
+          interviewLength: input.interviewLength,
           companyName: input.companyName ?? null,
           industryMajor: input.industryMajor ?? null,
           industryMinor: input.industryMinor ?? null,
@@ -161,6 +165,15 @@ describe("POST /api/sessions", () => {
     expect(routeMocks.createSessionInputs).toHaveLength(0);
   });
 
+  it("未対応の面接の長さなら400を返す", async () => {
+    const response = await POST(
+      postRequest(JSON.stringify({ interviewLength: "UNKNOWN" })),
+    );
+
+    expect(response.status).toBe(400);
+    expect(routeMocks.createSessionInputs).toHaveLength(0);
+  });
+
   it("セッションを作成し、最初の質問を 201 で返す", async () => {
     const response = await POST(
       postRequest(
@@ -175,16 +188,18 @@ describe("POST /api/sessions", () => {
     expect(response.status).toBe(201);
     expect(routeMocks.createSessionInputs).toHaveLength(1);
     expect(routeMocks.createSessionInputs[0]?.userId).toBe("user-1");
-    expect(routeMocks.createSessionInputs[0]?.selectedQuestions).toHaveLength(5);
+    expect(routeMocks.createSessionInputs[0]?.selectedQuestions).toHaveLength(4);
     expect(
       routeMocks.createSessionInputs[0]?.selectedQuestions.map(
         (question) => question.displayOrder,
       ),
-    ).toEqual([1, 2, 3, 4, 5]);
+    ).toEqual([1, 2, 3, 4]);
 
     await expect(response.json()).resolves.toEqual({
       sessionId: "session-1",
       createdAt: "2026-07-07T00:00:00.000Z",
+      interviewLength: InterviewLength.STANDARD,
+      totalQuestionCount: 12,
       voiceEnabled: false,
       questionsGeneratedFromJobPosting: false,
       firstQuestion: {
@@ -194,6 +209,35 @@ describe("POST /api/sessions", () => {
         speechText: expect.any(String),
         parentQuestionId: null,
       },
+    });
+  });
+
+  it("短めなら本質問4問・総質問数8問で作成する", async () => {
+    const response = await POST(
+      postRequest(JSON.stringify({ interviewLength: InterviewLength.SHORT })),
+    );
+
+    expect(response.status).toBe(201);
+    expect(routeMocks.createSessionInputs[0]?.interviewLength).toBe(
+      InterviewLength.SHORT,
+    );
+    expect(routeMocks.createSessionInputs[0]?.selectedQuestions).toHaveLength(4);
+    await expect(response.json()).resolves.toMatchObject({
+      interviewLength: InterviewLength.SHORT,
+      totalQuestionCount: 8,
+    });
+  });
+
+  it("長めなら本質問6問・総質問数18問で作成する", async () => {
+    const response = await POST(
+      postRequest(JSON.stringify({ interviewLength: InterviewLength.LONG })),
+    );
+
+    expect(response.status).toBe(201);
+    expect(routeMocks.createSessionInputs[0]?.selectedQuestions).toHaveLength(6);
+    await expect(response.json()).resolves.toMatchObject({
+      interviewLength: InterviewLength.LONG,
+      totalQuestionCount: 18,
     });
   });
 

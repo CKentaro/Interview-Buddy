@@ -10,6 +10,7 @@ import type {
 import { GetInterviewHistoryUseCase } from "@/application/interview/GetInterviewHistoryUseCase";
 import { StartInterviewUseCase } from "@/application/interview/StartInterviewUseCase";
 import { INTERVIEWER_TYPES } from "@/domain/interview/model/InterviewerType.vo";
+import { INTERVIEW_LENGTH_VALUES } from "@/domain/interview/model/InterviewLength.vo";
 import type { JobPostingContext } from "@/domain/interview/model/JobPosting.vo";
 import {
   EmploymentKind,
@@ -58,6 +59,7 @@ const createSessionSchema = z
     selectionStage: z.string().optional(),
     interviewerType: z.enum(INTERVIEWER_TYPES).optional(),
     voiceEnabled: z.boolean().optional(),
+    interviewLength: z.enum(INTERVIEW_LENGTH_VALUES).optional(),
     jobPosting: jobPostingSchema.optional(),
     generateQuestionsFromJobPosting: z.boolean().optional(),
   })
@@ -129,6 +131,8 @@ export async function POST(request: Request): Promise<Response> {
     const response: SessionResponse = {
       sessionId: result.session.id,
       createdAt: result.session.startedAt.toISOString(),
+      interviewLength: result.session.interviewLength,
+      totalQuestionCount: result.totalQuestionCount,
       firstQuestion,
       voiceEnabled: result.voiceEnabled,
       questionsGeneratedFromJobPosting: result.questionsGeneratedFromJobPosting,

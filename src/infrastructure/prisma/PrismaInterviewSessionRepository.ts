@@ -23,11 +23,16 @@ import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import type {
   EvaluationAxis as PrismaEvaluationAxis,
+  InterviewLength as PrismaInterviewLength,
   QuestionType as PrismaQuestionType,
   SessionStatus as PrismaSessionStatus,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { AXIS_TO_DOMAIN, AXIS_TO_PRISMA } from "./evaluationAxisMapping";
+import {
+  INTERVIEW_LENGTH_TO_DOMAIN,
+  INTERVIEW_LENGTH_TO_PRISMA,
+} from "./interviewLengthMapping";
 
 // ── Prisma の QuestionType ⇔ ドメインの QuestionType（値は同一だが型を明示的に橋渡しする）──
 
@@ -59,6 +64,7 @@ type PrismaInterviewSessionRow = {
   endedAt: Date | null;
   status: PrismaSessionStatus;
   voiceEnabled: boolean;
+  interviewLength: PrismaInterviewLength;
   companyName: string | null;
   industryMajor: string | null;
   industryMinor: string | null;
@@ -91,6 +97,7 @@ function toDomainInterviewSession(
     endedAt: row.endedAt,
     status: STATUS_TO_DOMAIN[row.status],
     voiceEnabled: row.voiceEnabled,
+    interviewLength: INTERVIEW_LENGTH_TO_DOMAIN[row.interviewLength],
     companyName: row.companyName,
     industryMajor: row.industryMajor,
     industryMinor: row.industryMinor,
@@ -145,6 +152,7 @@ export class PrismaInterviewSessionRepository
           selectionStage: input.selectionStage,
           interviewerType: input.interviewerType,
           voiceEnabled: input.voiceEnabled ?? false,
+          interviewLength: INTERVIEW_LENGTH_TO_PRISMA[input.interviewLength],
         },
       });
 

@@ -1,5 +1,6 @@
 import type { EvaluationAxis, QuestionType } from "@/generated/prisma/enums";
 import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
+import type { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 
 // ─── Session list ────────────────────────────────────────────
 export type SessionListItemResponse = {
@@ -49,6 +50,8 @@ export type ResumeSessionResponse = {
   status: "IN_PROGRESS";
   voiceEnabled: boolean;
   interviewerType: string | null;
+  interviewLength: InterviewLength;
+  totalQuestionCount: number;
   currentQuestion: QuestionResponse;
   questionNumber: number;
 };
@@ -151,6 +154,8 @@ export type CreateSessionRequest = {
   selectionStage?: string;
   interviewerType?: InterviewerType;
   voiceEnabled?: boolean;
+  /** 短め / 普通 / 長め。未指定時は普通。 */
+  interviewLength?: InterviewLength;
   /**
    * 求人ページの解析結果。本質問を求人由来で生成する場合に渡す。
    * POST /api/job-postings/analyze の analyzed レスポンスをそのまま入れる想定。
@@ -171,6 +176,8 @@ export type QuestionResponse = {
 export type SessionResponse = {
   sessionId: string;
   createdAt: string;
+  interviewLength: InterviewLength;
+  totalQuestionCount: number;
   firstQuestion: QuestionResponse;
   /**
    * 実際に音声読み上げが有効化されたか。要求しても本日の音声枠が使用済みなら false。

@@ -1,9 +1,18 @@
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
+import {
+  DEFAULT_INTERVIEW_LENGTH,
+  type InterviewLength,
+  resolveInterviewLength,
+} from "@/domain/interview/model/InterviewLength.vo";
 import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import { resolveInterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import type { JobPostingContext } from "@/domain/interview/model/JobPosting.vo";
 import { isUsableAsQuestionContext } from "@/domain/interview/model/JobPosting.vo";
-import { MAIN_QUESTION_AXIS_PLAN } from "@/domain/interview/model/mainQuestionPlan";
+import type { MainQuestionPlanEntry } from "@/domain/interview/model/mainQuestionPlan";
+import {
+  getInterviewLengthPolicy,
+  getTotalQuestionCount,
+} from "@/domain/interview/model/interviewLengthPolicy";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import type { SelectedQuestion } from "@/domain/interview/model/SelectedQuestion.vo";
 import { MainQuestionSource } from "@/domain/interview/model/SelectedQuestion.vo";
@@ -24,6 +33,8 @@ export type StartInterviewInput = {
   selectionStage?: string;
   interviewerType?: InterviewerType;
   voiceEnabled?: boolean;
+  /** 面接の長さ。未指定時は現在と同じ STANDARD。 */
+  interviewLength?: InterviewLength;
   /**
    * 求人ページから抽出した文脈。本質問を求人由来で生成する場合に必要。
    * 解析していない／解析に失敗した場合は undefined。
@@ -44,6 +55,8 @@ export type StartInterviewResult = {
   voiceEnabled: boolean;
   /** 本質問が求人由来の生成に切り替わったか（生成に失敗した場合は false）。 */
   questionsGeneratedFromJobPosting: boolean;
+  /** ライブ画面の固定進捗表示に使う完走時の総質問数。 */
+  totalQuestionCount: number;
 };
 
 export class StartInterviewUseCase {
@@ -56,7 +69,14 @@ export class StartInterviewUseCase {
 
   async execute(input: StartInterviewInput): Promise<StartInterviewResult> {
     const interviewerType = resolveInterviewerType(input.interviewerType);
-    const selectedQuestions = await this.resolveMainQuestions(input);
+    const interviewLength = resolveInterviewLength(
+      input.interviewLength ?? DEFAULT_INTERVIEW_LENGTH,
+    );
+    const policy = getInterviewLengthPolicy(interviewLength);
+    const selectedQuestions = await this.resolveMainQuestions(
+      input,
+      policy.mainQuestionPlan,
+    );
     const questionsGeneratedFromJobPosting = selectedQuestions.some(
       (question) => question.source === MainQuestionSource.GENERATED,
     );
@@ -76,6 +96,7 @@ export class StartInterviewUseCase {
         selectionStage: input.selectionStage,
         interviewerType,
         voiceEnabled,
+        interviewLength,
         selectedQuestions,
       });
 
@@ -102,11 +123,12 @@ export class StartInterviewUseCase {
       speechText,
       voiceEnabled,
       questionsGeneratedFromJobPosting,
+      totalQuestionCount: getTotalQuestionCount(interviewLength),
     };
   }
 
   /**
-   * 本質問 5 問を決める。求人由来の生成を要求された場合のみ生成を試み、
+   * 長さ設定に応じた本質問を決める。求人由来の生成を要求された場合のみ生成を試み、
    * 失敗したらバンク抽選へ落とす。
    *
    * 生成は外部 API 依存で失敗しうる一方、面接そのものはバンク抽選で問題なく
@@ -115,6 +137,7 @@ export class StartInterviewUseCase {
    */
   private async resolveMainQuestions(
     input: StartInterviewInput,
+    plan: readonly MainQuestionPlanEntry[],
   ): Promise<SelectedQuestion[]> {
     // 解析結果はクライアント経由で戻ってくるため、抽出時の整合チェックを
     // ここでもう一度通す（usableAsContext だけを信用しない）。
@@ -130,13 +153,13 @@ export class StartInterviewUseCase {
       try {
         return await generationService.generate({
           jobPosting,
-          plan: MAIN_QUESTION_AXIS_PLAN,
+          plan,
         });
       } catch (error) {
         console.error("Main question generation failed; falling back to bank:", error);
       }
     }
-    return selectMainQuestions(this.questionBankProvider.load());
+    return selectMainQuestions(this.questionBankProvider.load(), { plan });
   }
 
   /**

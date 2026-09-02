@@ -1,12 +1,17 @@
 import type { BankAxis, BankQuestion, QuestionBank } from "../model/QuestionBank.vo";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
-import { MAIN_QUESTION_AXIS_PLAN } from "../model/mainQuestionPlan";
+import {
+  MAIN_QUESTION_AXIS_PLAN,
+  type MainQuestionPlanEntry,
+} from "../model/mainQuestionPlan";
 import type { SelectedQuestion } from "../model/SelectedQuestion.vo";
 import { MainQuestionSource } from "../model/SelectedQuestion.vo";
 
 export { MAIN_QUESTION_COUNT } from "../model/mainQuestionPlan";
 
 export type SelectMainQuestionsOptions = {
+  /** 長さ設定から解決した軸・表示順。既定は普通の 5 問。 */
+  plan?: readonly MainQuestionPlanEntry[];
   /**
    * 乱数源（0 以上 1 未満）。既定は Math.random。
    * テストで決定的な抽選を行えるよう注入可能にしている。
@@ -60,6 +65,7 @@ export function selectMainQuestions(
   options: SelectMainQuestionsOptions = {},
 ): SelectedQuestion[] {
   const random = options.random ?? Math.random;
+  const plan = options.plan ?? MAIN_QUESTION_AXIS_PLAN;
 
   const byAxis = new Map<EvaluationAxis, BankAxis>();
   for (const bankAxis of [
@@ -72,7 +78,7 @@ export function selectMainQuestions(
   }
 
   const usedBankIds = new Set<string>();
-  return MAIN_QUESTION_AXIS_PLAN.map((entry) => {
+  return plan.map((entry) => {
     const bankAxis = byAxis.get(entry.axis);
     if (!bankAxis) {
       throw new InsufficientQuestionBankError(
