@@ -4,6 +4,7 @@ import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
+import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
 import type {
   CreateFollowUpQuestionInput,
   CreateSessionResult,
@@ -68,6 +69,8 @@ function createSession(questions: Question[]): InterviewSession {
     userId: "user-1",
     startedAt: new Date("2026-07-08T00:00:00.000Z"),
     endedAt: null,
+    status: SessionStatus.IN_PROGRESS,
+    voiceEnabled: false,
     companyName: null,
     industryMajor: null,
     industryMinor: null,

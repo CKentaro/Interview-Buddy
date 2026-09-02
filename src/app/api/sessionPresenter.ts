@@ -3,9 +3,14 @@ import type {
   SessionQuestionWithAnswer,
   SessionSummary,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
+import type { ResumableSessionSummary } from "@/domain/interview/ports/IInterviewSessionLifecycleRepository";
 import { QuestionType as PrismaQuestionType } from "@/generated/prisma/enums";
 import { AXIS_TO_PRISMA } from "@/infrastructure/prisma/evaluationAxisMapping";
-import type { QuestionWithAnswer, SessionListItemResponse } from "./types";
+import type {
+  QuestionWithAnswer,
+  ResumableSessionItemResponse,
+  SessionListItemResponse,
+} from "./types";
 
 /** ドメインの QuestionType → Prisma enum（値は同一だが型を明示的に橋渡し）。 */
 const TYPE_TO_PRISMA: Record<QuestionType, PrismaQuestionType> = {
@@ -48,5 +53,23 @@ export function toSessionListItem(s: SessionSummary): SessionListItemResponse {
     interviewerType: s.interviewerType,
     questionCount: s.questionCount,
     hasFeedback: s.hasFeedback,
+  };
+}
+
+/** 中断セッションのサマリを HOME 用 DTO に変換する。 */
+export function toResumableSessionItem(
+  session: ResumableSessionSummary,
+): ResumableSessionItemResponse {
+  return {
+    id: session.id,
+    startedAt: session.startedAt.toISOString(),
+    companyName: session.companyName,
+    industryMajor: session.industryMajor,
+    industryMinor: session.industryMinor,
+    jobMajor: session.jobMajor,
+    jobMinor: session.jobMinor,
+    selectionStage: session.selectionStage,
+    interviewerType: session.interviewerType,
+    answeredQuestionCount: session.answeredQuestionCount,
   };
 }

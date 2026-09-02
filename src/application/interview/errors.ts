@@ -10,3 +10,11 @@ export class SessionNotFoundError extends Error {
     this.name = "SessionNotFoundError";
   }
 }
+
+/** 現在の状態では要求されたセッション操作を実行できない。 */
+export class SessionStatusConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SessionStatusConflictError";
+  }
+}

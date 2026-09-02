@@ -3,6 +3,7 @@ import type { Question } from "@/domain/interview/model/Question.entity";
 import type { InterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import { resolveInterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
+import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
 import {
   DuplicateAnswerError,
   type IInterviewSessionRepository,
@@ -102,9 +103,9 @@ export class AnswerQuestionUseCase {
     if (session === null) {
       throw new SessionNotFoundError(input.sessionId);
     }
-    if (session.endedAt !== null) {
+    if (session.status !== SessionStatus.IN_PROGRESS) {
       throw new InvalidQuestionStateError(
-        `Session ${input.sessionId} is already completed`,
+        `Session ${input.sessionId} is not in progress: ${session.status}`,
       );
     }
 

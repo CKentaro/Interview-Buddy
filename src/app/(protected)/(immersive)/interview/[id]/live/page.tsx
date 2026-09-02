@@ -7,7 +7,7 @@ import type {
   AnswerResponse,
   NextQuestionResponse,
   QuestionResponse,
-  SessionDetailResponse,
+  ResumeSessionResponse,
 } from "@/app/api/types";
 import { MAIN_QUESTION_COUNT } from "@/domain/interview/services/selectMainQuestions";
 import { MAX_FOLLOW_UP_DEPTH } from "@/domain/interview/services/decideNextStep";
@@ -218,7 +218,7 @@ function AbortModal({ onCancel, onConfirm, aborting }: { onCancel: () => void; o
     <div className="dialog-backdrop" onClick={onCancel}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-title">面接を中断しますか？</div>
-        <div className="dialog-body">ここまでの回答とフィードバックは保存されません。中断すると、この面接はやり直しになります。</div>
+        <div className="dialog-body">送信済みの回答は保存され、HOME画面から後で再開できます。入力中でまだ送信していない文章は保存されません。</div>
         <div className="dialog-actions">
           <button className="btn btn-secondary" onClick={onCancel} disabled={aborting}>続ける</button>
           <button className="btn btn-primary" onClick={onConfirm} disabled={aborting}>{aborting ? "中断しています…" : "中断する"}</button>
@@ -350,7 +350,7 @@ export default function LivePage() {
   const toggleRecording = () => { if (recording) stopRecognition(); else startRecognition(); };
 
   // sessionStorage から復元し、音声ありなら最初の質問の TTS を先に用意する。
-  // sessionStorage が無い（リロード等）場合はセッション詳細から未回答の質問を復元する（音声なし）。
+  // sessionStorage が無い（別端末・直接遷移等）場合は、DB の回答状況を正として再開する。
   // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の prepare が
   // キャンセルされたまま再実行されず固まるのを避けるため、cleanup の cancelled フラグだけで制御する。
   useEffect(() => {
@@ -388,24 +388,48 @@ export default function LivePage() {
       };
     }
 
-    // sessionStorage 無し（リロード等）→ セッション詳細から未回答の質問を復元する（音声なし）。
-    fetch(`/api/sessions/${sessionId}`)
-      .then((r) => r.json())
-      .then((detail: SessionDetailResponse) => {
+    // sessionStorage 無し（別端末・直接遷移等）→ DB 上の状態から再開位置を復元する。
+    fetch(`/api/sessions/${sessionId}/resume`, { method: "POST" })
+      .then(async (response) => {
+        if (response.status === 409) {
+          router.replace(`/interview/${sessionId}/feedback`);
+          return null;
+        }
+        if (!response.ok) throw new Error(`${response.status}`);
+        return (await response.json()) as ResumeSessionResponse;
+      })
+      .then(async (resumed) => {
         if (cancelled) return;
-        if (detail.endedAt) {
-          router.replace(`/interview/${sessionId}/feedback`);
-          return;
-        }
-        const unanswered = detail.questions.find((q) => q.answer === null);
-        if (!unanswered) {
-          router.replace(`/interview/${sessionId}/feedback`);
-          return;
-        }
-        setQuestion({ id: unanswered.id, text: unanswered.content });
-        setInterviewerType(resolveInterviewerType(detail.interviewerType));
-        setQuestionNumber(detail.questions.length);
+        if (resumed === null) return;
+        const resumedType = resolveInterviewerType(resumed.interviewerType);
+        const speechText =
+          resumed.currentQuestion.speechText ?? resumed.currentQuestion.text;
+        setQuestion(resumed.currentQuestion);
+        setVoiceEnabled(resumed.voiceEnabled);
+        setInterviewerType(resumedType);
+        setQuestionNumber(resumed.questionNumber);
+        sessionStorage.setItem(
+          "ib-session",
+          JSON.stringify({
+            sessionId: resumed.sessionId,
+            voiceEnabled: resumed.voiceEnabled,
+            question: resumed.currentQuestion,
+            questionNumber: resumed.questionNumber,
+            interviewerType: resumed.interviewerType ?? undefined,
+          }),
+        );
         setStatus("ready");
+
+        if (resumed.voiceEnabled) {
+          const buffer = await prepareTTS(
+            speechText,
+            sessionId,
+            resumedType,
+          );
+          if (!cancelled) {
+            await speakQuestion(buffer, speechText, setSpeaking);
+          }
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -501,8 +525,7 @@ export default function LivePage() {
     }
   };
 
-  // 中断：途中まで作成されたセッションを削除し、データを残さず HOME へ戻る。
-  // 破棄は取り消せないため、確認ダイアログを経てから実行する。
+  // 中断：送信済みの回答を DB に残したまま PAUSED にし、HOME へ戻る。
   const handleAbort = async () => {
     if (aborting) return;
     if (recording) stopRecognition();
@@ -510,7 +533,9 @@ export default function LivePage() {
     stopCurrentAudio();
     setSpeaking(false);
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      const res = await fetch(`/api/sessions/${sessionId}/pause`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`${res.status}`);
       sessionStorage.removeItem("ib-session");
       router.replace("/home");

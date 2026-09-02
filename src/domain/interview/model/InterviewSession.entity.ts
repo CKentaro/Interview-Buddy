@@ -1,4 +1,5 @@
 import type { Question } from "./Question.entity";
+import { SessionStatus } from "./SessionStatus.vo";
 
 /**
  * 面接セッションのエンティティ（ユビキタス言語: InterviewSession）。
@@ -13,6 +14,10 @@ export type InterviewSession = {
   startedAt: Date;
   /** 面接終了日時。未終了なら null。 */
   endedAt: Date | null;
+  /** 面接の進行状態。COMPLETED は終了済みの終端状態。 */
+  status: SessionStatus;
+  /** AI 音声読み上げを有効にして開始したセッションか。 */
+  voiceEnabled: boolean;
   companyName: string | null;
   industryMajor: string | null;
   industryMinor: string | null;
@@ -24,7 +29,7 @@ export type InterviewSession = {
   questions: Question[];
 };
 
-/** セッションが終了済みか（endedAt が記録されているか）。 */
+/** セッションが終了済みか（状態が COMPLETED か）。 */
 export function isSessionCompleted(session: InterviewSession): boolean {
-  return session.endedAt !== null;
+  return session.status === SessionStatus.COMPLETED;
 }

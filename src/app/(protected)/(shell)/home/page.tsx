@@ -2,8 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import type { SessionListItemResponse, SessionListResponse } from "@/app/api/types";
+import type {
+  ResumableSessionItemResponse,
+  ResumableSessionListResponse,
+  ResumeSessionResponse,
+  SessionListItemResponse,
+  SessionListResponse,
+} from "@/app/api/types";
 import { SessionCard } from "@/components/interview/SessionCard";
 import { LcMessage, LcInbox } from "@/components/ui/icons";
 
@@ -24,18 +31,65 @@ function todayStr(): string {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const { data: session } = useSession();
   const user = session?.user;
   const [sessions, setSessions] = useState<SessionListItemResponse[]>([]);
+  const [resumableSessions, setResumableSessions] = useState<
+    ResumableSessionItemResponse[]
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [resumingId, setResumingId] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState("");
 
   useEffect(() => {
-    fetch("/api/sessions")
-      .then((r) => r.json())
-      .then((d: SessionListResponse) => setSessions(d.sessions))
+    Promise.all([
+      fetch("/api/sessions").then((response) => {
+        if (!response.ok) throw new Error(`${response.status}`);
+        return response.json() as Promise<SessionListResponse>;
+      }),
+      fetch("/api/sessions/resumable").then((response) => {
+        if (!response.ok) throw new Error(`${response.status}`);
+        return response.json() as Promise<ResumableSessionListResponse>;
+      }),
+    ])
+      .then(([history, resumable]) => {
+        setSessions(history.sessions);
+        setResumableSessions(resumable.sessions);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const handleResume = async (sessionId: string) => {
+    if (resumingId !== null) return;
+    setResumingId(sessionId);
+    setResumeError("");
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/resume`, {
+        method: "POST",
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+      const resumed = (await response.json()) as ResumeSessionResponse;
+      sessionStorage.setItem(
+        "ib-session",
+        JSON.stringify({
+          sessionId: resumed.sessionId,
+          voiceEnabled: resumed.voiceEnabled,
+          question: resumed.currentQuestion,
+          questionNumber: resumed.questionNumber,
+          interviewerType: resumed.interviewerType ?? undefined,
+        }),
+      );
+      router.push(`/interview/${sessionId}/live`);
+    } catch (error) {
+      console.error("面接の再開に失敗しました", error);
+      setResumeError(
+        "面接を再開できませんでした。画面を更新して、もう一度お試しください。",
+      );
+      setResumingId(null);
+    }
+  };
 
   const recent = sessions.slice(0, 3);
   const firstName = (user?.name ?? "").split(" ")[0] || user?.name || "";
@@ -61,6 +115,100 @@ export default function HomePage() {
             <span>新しい面接練習をはじめる</span>
           </Link>
         </section>
+
+        {!loading && resumableSessions.length > 0 && (
+          <section
+            className="ib-section"
+            style={{ display: "flex", flexDirection: "column", gap: 12 }}
+          >
+            <div>
+              <h3
+                style={{ margin: 0, fontSize: 18, fontFamily: "var(--font-jp)" }}
+              >
+                中断中の面接
+              </h3>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12.5,
+                  color: muted(55),
+                  fontFamily: "var(--font-jp)",
+                }}
+              >
+                送信済みの回答から続きを再開できます。
+              </div>
+            </div>
+
+            {resumeError && (
+              <div
+                role="alert"
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--color-accent-100)",
+                  color: "var(--color-accent-800)",
+                  fontSize: 12.5,
+                  fontFamily: "var(--font-jp)",
+                }}
+              >
+                {resumeError}
+              </div>
+            )}
+
+            <div className="ib-card-list">
+              {resumableSessions.map((item) => {
+                const role =
+                  [item.jobMajor, item.jobMinor].filter(Boolean).join(" / ") ||
+                  [item.industryMajor, item.industryMinor]
+                    .filter(Boolean)
+                    .join(" / ") ||
+                  "設定なし";
+                const isResuming = resumingId === item.id;
+                return (
+                  <div key={item.id} className="ib-session-card">
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 3,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 14.5,
+                          fontWeight: 600,
+                          fontFamily: "var(--font-jp)",
+                        }}
+                      >
+                        {item.companyName ?? "（企業名未入力）"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: muted(50),
+                          fontFamily: "var(--font-jp)",
+                        }}
+                      >
+                        {new Date(item.startedAt).toLocaleDateString("ja-JP")} ・ {role}
+                        ・ 回答済み {item.answeredQuestionCount}問
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={resumingId !== null}
+                      onClick={() => void handleResume(item.id)}
+                    >
+                      {isResuming ? "再開しています…" : "再開する"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* recent */}
         <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

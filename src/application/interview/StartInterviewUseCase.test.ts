@@ -5,6 +5,7 @@ import type { Answer } from "@/domain/interview/model/Answer.entity";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
+import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
 import type {
   CreateSessionInput,
   CreateSessionResult,
@@ -80,6 +81,8 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
         userId: input.userId,
         startedAt: new Date("2026-07-07T00:00:00.000Z"),
         endedAt: null,
+        status: SessionStatus.IN_PROGRESS,
+        voiceEnabled: input.voiceEnabled ?? false,
         companyName: input.companyName ?? null,
         industryMajor: input.industryMajor ?? null,
         industryMinor: input.industryMinor ?? null,
