@@ -1,50 +1,71 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-archivo), var(--font-noto-jp), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-sans: var(--font-zen-kaku), system-ui, sans-serif;
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   Modernist — organic variant. Flat, architectural type (Archivo) with a
-   single red accent on a warm ground, softened by generous corner radii and
-   gentle shadows. All pages read their color / spacing / radius / shadow from
-   these tokens.
+   白地・罫線主導。
+   面は塗りの濃淡ではなく 1px の罫線で分ける。影は使わない（ダイアログと
+   モバイルドロワーだけ例外）。製品内で彩度を持つのは「4つの評価軸」と
+   エラー表示だけで、それ以外のクロームは最後まで無彩色で通す。
+   全ページがここのトークンから色・余白・角丸を読む。
    ════════════════════════════════════════════════════════════════════════ */
 :root {
-  --color-bg: #f3f2f2;
-  --color-surface: #eae9e9;
-  --color-text: #201e1d;
-  --color-accent: #ec3013;
-  --color-accent-2: #e15b47;
-  --color-divider: color-mix(in srgb, #201e1d 14%, transparent);
+  /* ── 地と面 ── */
+  --color-bg: #fcfcfb;        /* 地（ページ） */
+  --color-panel: #ffffff;     /* 面（カード・サイドバー・上部バー） */
+  --color-surface: #f7f6f3;   /* 沈め（回答・引用・入力欄の下地） */
+  --color-divider: #e7e5e1;   /* 罫線（既定） */
+  --color-rule-strong: #d8d4ce; /* 罫線（操作要素） */
 
-  /* Neutral ramp */
-  --color-neutral-100: #f8f4f4;
-  --color-neutral-200: #eae7e7;
-  --color-neutral-300: #d7d3d3;
-  --color-neutral-400: #bab6b6;
-  --color-neutral-500: #9b9797;
-  --color-neutral-600: #7d7979;
-  --color-neutral-700: #605d5d;
-  --color-neutral-800: #444141;
-  --color-neutral-900: #2d2b2b;
+  /* ── ニュートラルランプ（暖色寄り） ── */
+  --color-neutral-100: #faf9f7;
+  --color-neutral-200: #f1efeb;
+  --color-neutral-300: #e0ddd8;
+  --color-neutral-400: #c9c4bc;
+  --color-neutral-500: #a9a39a;
+  --color-neutral-600: #8e8981;
+  --color-neutral-700: #6e6860;
+  --color-neutral-800: #57534c;
+  --color-neutral-900: #2d2b28;
 
-  /* Accent ramp */
-  --color-accent-100: #fff2ef;
-  --color-accent-200: #ffe0d9;
-  --color-accent-300: #ffc4b8;
-  --color-accent-400: #ff9783;
-  --color-accent-500: #ff563c;
-  --color-accent-600: #dd2b0f;
-  --color-accent-700: #ae1800;
-  --color-accent-800: #7c1405;
-  --color-accent-900: #4d170e;
+  /* ── 文字色 ──
+     透明度合成をやめ、実体のある色で階層をつくる。括弧内は白地でのコントラスト比。
+     旧 muted(p) ヘルパーの置き換え先はここ。 */
+  --color-text: #1b1a18;                    /* 17.3:1  本文・見出し */
+  --ink: var(--color-text);
+  --ink-2: var(--color-neutral-800);        /*  7.6:1  長文・コメント */
+  --ink-3: var(--color-neutral-700);        /*  5.5:1  補助・メタ情報 */
+  --ink-4: var(--color-neutral-500);        /*  2.5:1  装飾専用。文字には使わない */
 
-  --font-heading: var(--font-archivo), var(--font-noto-jp), system-ui, sans-serif;
-  --font-heading-weight: 800;
-  --font-body: var(--font-archivo), var(--font-noto-jp), system-ui, sans-serif;
-  --font-jp: var(--font-noto-jp), var(--font-archivo), system-ui, sans-serif;
+  /* ── 操作色 ──
+     ブランドカラーで塗らない。主ボタンもフォーカスも墨。 */
+  --color-accent: #1b1a18;
+  --color-accent-600: #322f2c;  /* hover */
+  --color-accent-700: #47433d;  /* active */
+
+  /* ── 評価軸（製品内で唯一の彩度・アイコン専用） ──
+     いずれも白地で 4.2〜4.6:1。3:1 のアイコン基準は満たすが、
+     文字色には使わないこと。 */
+  --axis-reproducibility: #a0714b;
+  --axis-reproducibility-tint: #f7f1e8;
+  --axis-values: #4e8069;
+  --axis-values-tint: #ecf2ef;
+  --axis-self: #56789f;
+  --axis-self-tint: #ecf1f6;
+  --axis-worldview: #8c6e93;
+  --axis-worldview-tint: #f3eef4;
+
+  /* ── エラー・警告 ──
+     機能上の色。軸の琥珀と衝突しないよう赤寄りに振ってある。 */
+  --color-danger: #9c3b2a;
+  --color-danger-bg: #fbf1ef;
+  --color-danger-line: #f0dcd7;
+
+  --font-heading: var(--font-zen-kaku), "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --font-heading-weight: 700;
+  --font-body: var(--font-zen-kaku), "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -54,38 +75,16 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* Organic radii */
-  --radius-sm: 12px;
-  --radius-md: 18px;
-  --radius-lg: 28px;
+  /* 角丸。直線的になりすぎないよう、操作要素からしっかり丸める。
+     sm=ボタン・入力・ナビ / md=内容ブロック・アイコンタイル / lg=カード・面 */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
 
-  /* Soft elevation tuned to the ground */
-  --shadow-sm: 0 2px 10px color-mix(in srgb, #2d2b2b 7%, transparent);
-  --shadow-md: 0 10px 28px color-mix(in srgb, #2d2b2b 9%, transparent);
-  --shadow-lg: 0 24px 56px color-mix(in srgb, #2d2b2b 14%, transparent);
-
-  /* ── Legacy token aliases (kept so any un-migrated markup stays on-brand) ── */
-  --ink: var(--color-text);
-  --ink-2: color-mix(in srgb, var(--color-text) 85%, transparent);
-  --ink-3: color-mix(in srgb, var(--color-text) 62%, transparent);
-  --ink-4: color-mix(in srgb, var(--color-text) 45%, transparent);
-  --line: var(--color-divider);
-  --line-strong: color-mix(in srgb, var(--color-text) 26%, transparent);
-  --bg: var(--color-bg);
-  --bg-card: var(--color-bg);
-  --bg-tint: var(--color-surface);
-  --bg-side: var(--color-bg);
-  --teal: var(--color-accent-500);
-  --teal-deep: var(--color-accent-700);
-  --teal-soft: var(--color-accent-100);
-  --blue: var(--color-accent-500);
-  --blue-soft: var(--color-accent-100);
-  --warm: var(--color-accent-500);
-  --warm-deep: var(--color-accent-700);
-  --warm-soft: var(--color-accent-100);
-  --warn: var(--color-accent-700);
-  --warn-bg: var(--color-accent-100);
-  --warn-line: var(--color-accent-300);
+  /* 影は原則使わない。重なるもの（ダイアログ・ドロワー）と、
+     つまみのように「物として動く」操作子だけ。 */
+  --shadow-overlay: 0 24px 48px rgb(27 26 24 / 14%);
+  --shadow-knob: 0 1px 2px rgb(27 26 24 / 22%);
 }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -101,8 +100,8 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.85;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "palt" 1;
@@ -113,23 +112,26 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   font-weight: var(--font-heading-weight);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
+  line-height: 1.45;
+  letter-spacing: -0.012em;
   margin: 0 0 var(--space-2);
 }
+
+/* 折り返しの最適化は散文だけに効かせる（見出しは markup の <br> に従わせる） */
+p { text-wrap: pretty; }
 
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
 
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+::selection { background: var(--color-neutral-300); }
 
-.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
-.mono { font-family: var(--font-jetbrains), ui-monospace, monospace; }
-.jp { font-family: var(--font-jp); }
+.text-muted { color: var(--ink-3); }
 
-/* ── Strong rule (softened to a hairline in this organic variant) ── */
+/* 数字を等幅に揃える。日付・時間・件数など桁が動くところに付ける。 */
+.num { font-variant-numeric: tabular-nums; }
+
 .hr { height: 1px; border: 0; margin: var(--space-4) 0; background: var(--color-divider); }
 
 /* ════════════════════════════════════════════════════════════════════════
@@ -138,26 +140,30 @@ img { display: block; max-width: 100%; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   cursor: pointer; text-decoration: none;
-  font-family: var(--font-jp);
-  font-weight: 600;
-  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  /* 幅の足りない行に置かれても 1 文字ずつ縦に折れないようにする */
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 13.5px; line-height: 1.2; color: var(--color-text);
   background: transparent; border: 1px solid transparent;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
-  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+  padding: 11px 20px;
+  border-radius: var(--radius-sm);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
 .btn svg { display: block; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary { background: var(--color-accent); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
 .btn-primary:active:not(:disabled) { background: var(--color-accent-700); }
-.btn-secondary { border-color: var(--color-divider); }
-.btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
-.btn-ghost { color: var(--color-accent-700); padding-inline: 10px; }
-.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
-.btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-secondary { border-color: var(--color-rule-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--color-neutral-100); border-color: var(--color-neutral-400); }
+.btn-secondary:active:not(:disabled) { background: var(--color-neutral-200); }
+.btn-ghost { color: var(--ink-3); padding-inline: 10px; }
+.btn-ghost:hover:not(:disabled) { background: var(--color-neutral-200); color: var(--color-text); }
+.btn-ghost:active:not(:disabled) { background: var(--color-neutral-300); }
 .btn-block { width: 100%; justify-content: flex-start; }
+/* 破壊的な操作。アカウント削除など。 */
+.btn-danger { background: var(--color-danger); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #86311f; }
 
 /* ── Google サインインボタン ──
    https://developers.google.com/identity/branding-guidelines
@@ -175,7 +181,7 @@ img { display: block; max-width: 100%; }
   border-radius: 4px;
   background: #fff;
   color: #1f1f1f;
-  font-family: var(--font-roboto), var(--font-noto-jp), system-ui, sans-serif;
+  font-family: var(--font-roboto), var(--font-zen-kaku), system-ui, sans-serif;
   font-weight: 500;
   font-size: 14px;
   line-height: 1.2;
@@ -191,111 +197,116 @@ img { display: block; max-width: 100%; }
    Forms
    ════════════════════════════════════════════════════════════════════════ */
 .field > label {
-  display: block; font-size: 12px; margin-bottom: 6px;
-  font-family: var(--font-jp);
-  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  display: block; font-size: 11.5px; margin-bottom: 7px;
+  color: var(--ink-3);
 }
 .input {
-  width: 100%; min-height: 44px; padding: 10px 14px; font: inherit;
-  font-family: var(--font-jp);
-  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
-  background: var(--color-surface);
-  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  width: 100%; min-height: 42px; padding: 10px 14px; font: inherit;
+  font-size: 13.5px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-panel);
+  border: 1px solid var(--color-rule-strong); border-radius: var(--radius-sm);
   transition: border-color .15s ease;
 }
-.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input::placeholder { color: var(--ink-4); }
+.input:hover { border-color: var(--color-neutral-400); }
 .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
 select.input { cursor: pointer; }
-textarea.input { min-height: 90px; resize: vertical; }
+textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Cards & tags
+   面は白 + 1px の罫線。塗りの濃淡でも影でも立てない。
    ════════════════════════════════════════════════════════════════════════ */
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-4); border-radius: var(--radius-lg); background: var(--color-surface);
+  padding: var(--space-6); border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  border: 1px solid var(--color-divider);
 }
-.card-title { font-family: var(--font-jp); font-weight: 700; font-size: 17px; line-height: 1.3; }
-.card-body { margin: 0; font-size: 13px; font-family: var(--font-jp); opacity: 0.8; flex: 1; }
-.elev-sm { box-shadow: var(--shadow-sm); }
-.elev-md { box-shadow: var(--shadow-md); }
-.elev-lg { box-shadow: var(--shadow-lg); }
+.card-title { font-weight: 500; font-size: 15px; line-height: 1.5; }
+.card-body { margin: 0; font-size: 13px; line-height: 1.9; color: var(--ink-2); flex: 1; }
 
 .tag {
-  display: inline-flex; align-items: center; font-size: 11px;
-  font-family: var(--font-jp);
-  letter-spacing: 0.02em; padding: 4px 10px;
+  display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+  letter-spacing: 0.02em; padding: 4px 11px;
   border-radius: 999px;
+  border: 1px solid transparent;
 }
-.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
-.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
-.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent-700); }
+.tag-accent { border-color: var(--color-rule-strong); color: var(--ink-2); }
+.tag-neutral { border-color: var(--color-divider); color: var(--ink-3); }
+.tag-outline { border-color: var(--color-rule-strong); color: var(--ink-2); }
 
 /* ════════════════════════════════════════════════════════════════════════
-   Dialog
+   Dialog — 重なるものなので、ここだけは影を使う
    ════════════════════════════════════════════════════════════════════════ */
 .dialog-backdrop {
   position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--color-neutral-900) 45%, transparent);
+  background: rgb(45 43 40 / 40%);
   animation: ib-fade .2s ease both;
 }
 .dialog {
   width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
   padding: var(--space-6); border-radius: var(--radius-lg);
-  background: var(--color-bg); box-shadow: var(--shadow-lg);
+  background: var(--color-panel); box-shadow: var(--shadow-overlay);
   animation: ib-pop .25s ease both;
 }
-.dialog-title { font-family: var(--font-jp); font-weight: 700; font-size: 20px; }
-.dialog-body { font-size: 14px; font-family: var(--font-jp); opacity: 0.85; line-height: 1.8; }
+.dialog-title { font-weight: 700; font-size: 18px; letter-spacing: -0.012em; }
+.dialog-body { font-size: 13.5px; color: var(--ink-2); line-height: 1.95; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
 /* ════════════════════════════════════════════════════════════════════════
-   Shared page helpers (from the mockups)
+   Shared page helpers
    ════════════════════════════════════════════════════════════════════════ */
 .ib-nav-link {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px var(--space-3); border-radius: var(--radius-md);
-  color: inherit; font-size: 14px; font-weight: 600; font-family: var(--font-jp);
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px var(--space-3); border-radius: var(--radius-sm);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 400;
   text-decoration: none; transition: background .15s ease, color .15s ease;
 }
-.ib-nav-link[aria-current="page"] { background: var(--color-accent-100); color: var(--color-accent-800); }
-.ib-nav-link:hover:not([aria-current="page"]) { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+/* 現在地は塗りではなく、左の墨罫で示す */
+.ib-nav-link[aria-current="page"] {
+  background: var(--color-surface); color: var(--color-text); font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.ib-nav-link:hover:not([aria-current="page"]) { background: var(--color-neutral-100); color: var(--color-text); }
 
-.ib-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; }
+.ib-badge { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; }
 .ib-row { transition: background .15s ease; }
-.ib-row:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+.ib-row:hover { background: var(--color-neutral-100); }
 .ib-section { animation: ib-fade-up .4s ease both; }
-.ib-link { color: color-mix(in srgb, var(--color-text) 65%, transparent); text-decoration: none; }
-.ib-link:hover { color: var(--color-accent-700); text-decoration: underline; }
+.ib-link { color: var(--ink-3); text-decoration: none; transition: color .15s ease; }
+.ib-link:hover { color: var(--color-text); }
 
 .ib-choice {
   border-radius: var(--radius-md); border: 1px solid var(--color-divider); cursor: pointer;
   padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: 4px;
-  background: var(--color-bg); text-align: left; transition: border-color .15s ease, background .15s ease;
+  background: var(--color-panel); text-align: left;
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
 }
-.ib-choice:hover { border-color: color-mix(in srgb, var(--color-text) 35%, transparent); }
-.ib-choice.ib-choice-active { border-color: var(--color-accent); background: var(--color-accent-100); }
+.ib-choice:hover { border-color: var(--color-neutral-400); }
+.ib-choice.ib-choice-active {
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  background: var(--color-panel);
+}
 
-/* ── Session list: independent cards, no dividers ─────────────────────── */
+/* ── 練習履歴のカード ── */
 .ib-card-list { display: flex; flex-direction: column; gap: 10px; }
 
 .ib-session-card {
-  display: flex; align-items: center; gap: 16px;
-  padding: 16px 20px;
+  display: flex; align-items: center; gap: 18px;
+  padding: 17px 20px;
   border: 1px solid var(--color-divider);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
   cursor: pointer;
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  transition: border-color .15s ease, background .15s ease;
 }
-.ib-session-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--color-text) 22%, transparent);
-}
-.ib-session-card:active { transform: translateY(0); box-shadow: var(--shadow-sm); }
-.ib-session-card .ib-session-chevron { transition: transform .16s ease; }
+/* 持ち上げない。罫線と面の色だけで返す。 */
+.ib-session-card:hover { border-color: var(--color-neutral-400); background: var(--color-neutral-100); }
+.ib-session-card:active { background: var(--color-neutral-200); }
+.ib-session-card .ib-session-chevron { transition: transform .15s ease; }
 .ib-session-card:hover .ib-session-chevron { transform: translateX(2px); }
 
 /* ── 面接官アバター ───────────────────────────────────────────────────── */
@@ -307,26 +318,27 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 @media (prefers-reduced-motion: reduce) {
   .ib-session-card, .ib-session-card .ib-session-chevron { transition: none; }
-  .ib-session-card:hover { transform: none; }
+  .ib-session-card:hover .ib-session-chevron { transform: none; }
   .ib-face-open.ib-face-talking { animation: none; }
 }
 
-/* Centered panel for the loading / empty states of a list */
+/* 一覧の読み込み中・空状態 */
 .ib-list-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; text-align: center;
   padding: 56px 24px;
   border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  background: var(--color-panel);
+  border: 1px solid var(--color-divider);
 }
 
 .ib-page-btn {
   min-width: 32px; height: 32px; padding: 0 6px; border-radius: var(--radius-sm);
-  border: 1px solid var(--color-divider); background: var(--color-bg);
-  font-size: 13px; font-family: var(--font-jp); cursor: pointer; color: var(--color-text);
-  transition: background .15s ease;
+  border: 1px solid var(--color-divider); background: var(--color-panel);
+  font-size: 12.5px; font-variant-numeric: tabular-nums; cursor: pointer; color: var(--color-text);
+  transition: background .15s ease, border-color .15s ease;
 }
-.ib-page-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.ib-page-btn:hover:not(:disabled) { background: var(--color-neutral-100); border-color: var(--color-neutral-400); }
 .ib-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .ib-page-btn-active { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
@@ -341,32 +353,32 @@ textarea.input { min-height: 90px; resize: vertical; }
 .ib-sidebar {
   width: 232px; flex: none;
   display: flex; flex-direction: column;
-  padding: 16px 0;
-  background: var(--color-bg);
-  box-shadow: var(--shadow-sm);
+  padding: 24px 0 20px;
+  background: var(--color-panel);
+  border-right: 1px solid var(--color-divider);
   position: sticky; top: 0; height: 100vh; z-index: 20;
   transition: width .2s ease;
 }
 .ib-side-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 0 16px 16px; margin-bottom: 12px;
+  padding: 0 20px 22px;
 }
 .ib-side-brand { min-width: 0; }
-.ib-side-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; flex: 1; }
-.ib-side-foot { padding: 12px 8px 0; border-top: 1px solid var(--color-divider); margin-top: 12px; }
-.ib-nav-link-profile { gap: 8px; margin-bottom: 4px; }
+.ib-side-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 12px; flex: 1; }
+.ib-side-foot { padding: 16px 12px 0; margin: 0 8px; border-top: 1px solid var(--color-divider); }
+.ib-nav-link-profile { gap: 10px; margin-bottom: 4px; }
 /* .btn-ghost の文字色・.btn の字送りを、サイドバー用に戻す */
-.ib-side-logout { font-size: 13px; gap: 8px; color: var(--color-text); }
+.ib-side-logout { font-size: 12.5px; gap: 11px; color: var(--ink-3); }
 
 /* サイドバー頭の小さなアイコンボタン（開閉トグル・ドロワーを閉じる） */
 .ib-side-btn {
   all: unset; cursor: pointer; flex: none;
   width: 32px; height: 32px; border-radius: var(--radius-sm);
   display: inline-flex; align-items: center; justify-content: center;
-  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  color: var(--ink-3);
   transition: background .15s ease, color .15s ease;
 }
-.ib-side-btn:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); color: var(--color-text); }
+.ib-side-btn:hover { background: var(--color-neutral-100); color: var(--color-text); }
 
 /* モバイル専用の枠。既定では出さず、Responsive セクションで現れる。 */
 .ib-topbar { display: none; }
@@ -384,8 +396,10 @@ textarea.input { min-height: 90px; resize: vertical; }
   gap: var(--ib-page-gap, 24px);
 }
 
-/* 横並びの行。狭い画面では縦積みにする（Responsive セクション） */
-.ib-split { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+/* 横並びの行。狭い画面では縦積みにする（Responsive セクション）。
+   .card と併用されるため flex-direction を明示する（.card は column なので、
+   ここで上書きしないと横並びにならない）。 */
+.ib-split { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; }
 /* 並んだアクションボタン。狭い画面では縦積み＋全幅にする */
 .ib-actions { display: flex; gap: 12px; }
 /* 画面端からの余白。狭い画面で詰める。 */
@@ -403,29 +417,30 @@ textarea.input { min-height: 90px; resize: vertical; }
   max-width: 1120px; margin: 0 auto; padding: 32px 32px 24px;
   display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center;
 }
-.ib-hero-title { font-size: 44px; line-height: 1.25; margin: 0; max-width: 16ch; font-family: var(--font-jp); }
+/* 改行は markup の <br> が決めるので、幅で折り返させない（16ch だと語中で折れる） */
+.ib-hero-title { font-size: 36px; line-height: 1.5; letter-spacing: -0.02em; margin: 0; }
 .ib-how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.ib-how-title { font-size: 30px; margin: 8px 0 24px; font-family: var(--font-jp); }
-.ib-cta-card { width: 100%; padding: 24px 32px; gap: 12px; background: var(--color-surface); }
-.ib-cta-title { margin: 0; font-size: 24px; font-family: var(--font-jp); }
+.ib-how-title { font-size: 26px; letter-spacing: -0.018em; margin: 8px 0 24px; }
+.ib-cta-card { width: 100%; padding: 28px 32px; gap: 12px; }
+.ib-cta-title { margin: 0; font-size: 21px; letter-spacing: -0.018em; }
 
 /* 見出し（PageHeader の h1 / ホームの挨拶） */
-.ib-page-title { font-size: 26px; margin: 0; line-height: 1.25; }
-.ib-greeting { font-size: 28px; font-weight: 700; font-family: var(--font-jp); letter-spacing: -0.01em; line-height: 1.3; }
+.ib-page-title { font-size: 21px; margin: 0; line-height: 1.45; letter-spacing: -0.012em; }
+.ib-greeting { font-size: 25px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.45; }
 
 /* セッションカード右側のメタ情報 */
 .ib-session-meta { display: flex; align-items: center; gap: 16px; flex: none; }
-.ib-session-stats { text-align: right; }
+.ib-session-stats { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* プロフィールの数値カード */
-.ib-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 16px; }
+.ib-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 20px; }
 
 /* 面接設定ウィザード */
-.ib-setup-main { min-height: 100vh; display: flex; justify-content: center; padding: 36px 32px 56px; }
+.ib-setup-main { min-height: 100vh; display: flex; justify-content: center; padding: 44px 32px 56px; }
 .ib-setup-card { padding: 24px; gap: 16px; }
 
 /* 評価軸カード：本文をアイコンの右端に揃える字下げ */
-.ib-axis-comment { padding-left: 38px; }
+.ib-axis-comment { padding-left: 41px; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Live interview — 画面の高さに収める 1 画面レイアウト。
@@ -435,13 +450,15 @@ textarea.input { min-height: 90px; resize: vertical; }
    ここを変えれば自動で追従する。
    ════════════════════════════════════════════════════════════════════════ */
 .ib-live {
-  --ta-font: 15px;
-  --ta-lh: 1.5;
-  --ta-pad-y: 12px;
+  --ta-font: 14.5px;
+  --ta-lh: 1.75;
+  --ta-pad-y: 11px;
   --ta-rows: 3;             /* これを超えたら伸ばさず、フォーム内スクロールに任せる */
-  --composer-pad-y: 8px;
+  --composer-pad-y: 14px;   /* フッター帯の上下パディング */
   --composer-hint: 26px;    /* フォーム下のヒント行（gap 込み） */
-  --footer-pad-b: 24px;
+  --footer-pad-b: 20px;
+  --composer-btn: 40px;     /* マイク。タッチ環境では 44px まで上げる */
+  --composer-send: 44px;
   --ta-max-h: calc(var(--ta-font) * var(--ta-lh) * var(--ta-rows) + var(--ta-pad-y) * 2);
   --composer-space: calc(
     var(--ta-max-h) + var(--composer-pad-y) * 2 + var(--composer-hint) + var(--footer-pad-b)
@@ -454,43 +471,53 @@ textarea.input { min-height: 90px; resize: vertical; }
 }
 .ib-live-bar {
   flex: none; display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; padding: 16px 24px;
+  gap: 16px; padding: 16px 28px;
+  border-bottom: 1px solid var(--color-divider);
 }
 .ib-live-progress {
-  width: 96px; height: 4px; flex: none; border-radius: 2px;
+  width: 96px; height: 3px; flex: none; border-radius: 999px;
   background: var(--color-neutral-300); overflow: hidden;
 }
 /* main：フォームが伸びても再レイアウトされないよう、下にフォームの最大高ぶんを常に確保する */
 .ib-live-main {
   flex: 1; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 24px;
-  padding: 24px 24px var(--composer-space);
+  gap: 32px;
+  padding: 32px 24px var(--composer-space);
 }
-.ib-live-question { margin: 0; font-size: 24px; line-height: 1.6; text-align: center; font-family: var(--font-jp); }
-/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */
+.ib-live-question {
+  margin: 0; font-size: 25px; font-weight: 500;
+  letter-spacing: -0.01em; line-height: 1.9;
+  text-align: center; max-width: 23em;
+}
+/* composer：画面下に固定した「帯」。フロー外に置くことで、行が増えても main 側は動かない。
+   帯そのものが白い面で、上辺の罫線が本文との境になる。 */
 .ib-live-footer {
   position: absolute; left: 0; right: 0; bottom: 0;
   display: flex; justify-content: center;
-  padding: 0 24px calc(var(--footer-pad-b) + env(safe-area-inset-bottom, 0px));
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-divider);
+  padding: var(--composer-pad-y) 28px calc(var(--footer-pad-b) + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
 }
 .ib-composer {
-  width: 100%; display: flex; align-items: flex-end; gap: 6px;
-  background: var(--color-bg); box-shadow: var(--shadow-md);
-  border-radius: var(--radius-lg);
-  padding: var(--composer-pad-y) var(--composer-pad-y) var(--composer-pad-y) 22px;
+  width: 100%; display: flex; align-items: flex-end; gap: 10px;
+  background: transparent; border-radius: 0; box-shadow: none;
+  padding: 0;
 }
 .ib-composer-input {
   flex: 1; min-width: 0;
   border: none; outline: none; background: transparent; resize: none;
-  font: inherit; font-family: var(--font-jp);
+  font: inherit;
   font-size: var(--ta-font); line-height: var(--ta-lh);
   padding: var(--ta-pad-y) 0;
   max-height: var(--ta-max-h);
   overflow-y: auto;
   color: var(--color-text);
 }
+.ib-composer-input::placeholder { color: var(--ink-4); }
+.ib-kbd-hint { font-size: 11.5px; color: var(--ink-4); }
+.ib-char-count { font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Animations
@@ -529,17 +556,17 @@ textarea.input { min-height: 90px; resize: vertical; }
    折りたたみ用の指定はこのブレークポイントの中に閉じ込めてある。 */
 @media (min-width: 769px) {
   .ib-sidebar[data-collapsed="true"] { width: 72px; }
-  .ib-sidebar[data-collapsed="true"] .ib-side-head { justify-content: center; padding: 0 0 16px; }
+  .ib-sidebar[data-collapsed="true"] .ib-side-head { justify-content: center; padding: 0 0 22px; }
   .ib-sidebar[data-collapsed="true"] .ib-side-brand,
   .ib-sidebar[data-collapsed="true"] .ib-side-label { display: none; }
-  .ib-sidebar[data-collapsed="true"] .ib-nav-link { justify-content: center; gap: 0; padding: 10px 0; }
+  .ib-sidebar[data-collapsed="true"] .ib-nav-link { justify-content: center; gap: 0; padding: 9px 0; }
   .ib-sidebar[data-collapsed="true"] .ib-side-logout { justify-content: center; gap: 0; }
 }
 
 /* ── 900px：タブレット ── */
 @media (max-width: 900px) {
   .ib-hero { grid-template-columns: 1fr; padding-top: 24px; }
-  .ib-hero-title { font-size: 34px; max-width: none; }
+  .ib-hero-title { font-size: 32px; max-width: none; }
   .ib-how-grid { grid-template-columns: 1fr; }
 }
 
@@ -549,14 +576,15 @@ textarea.input { min-height: 90px; resize: vertical; }
     display: flex; align-items: center; gap: 10px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 40;
     height: 56px; padding: 0 12px;
-    background: var(--color-bg); box-shadow: var(--shadow-sm);
+    background: var(--color-panel); border-bottom: 1px solid var(--color-divider);
   }
   .ib-shell-main { padding-top: 56px; }
 
   .ib-sidebar {
     position: fixed; top: 0; left: 0; bottom: 0;
     width: 268px; height: 100dvh; z-index: 60;
-    box-shadow: var(--shadow-lg);
+    border-right: 1px solid var(--color-divider);
+    box-shadow: var(--shadow-overlay);
     visibility: hidden;
     transform: translateX(-100%);
     /* 閉じるときは滑り終わってから隠す（visibility は離散的に切り替わる） */
@@ -567,7 +595,7 @@ textarea.input { min-height: 90px; resize: vertical; }
   .ib-side-collapse { display: none; }
   .ib-drawer-backdrop {
     display: block; position: fixed; inset: 0; z-index: 50;
-    background: color-mix(in srgb, var(--color-neutral-900) 42%, transparent);
+    background: rgb(45 43 40 / 38%);
     animation: ib-fade .2s ease both;
   }
 
@@ -575,13 +603,19 @@ textarea.input { min-height: 90px; resize: vertical; }
   .ib-band { padding: 28px 20px; }
   .ib-landing-inner { padding: 0 20px; }
   .ib-footer { padding: 20px; }
-  .ib-cta-card { padding: 20px; }
+  .ib-cta-card { padding: 22px 20px; }
   .ib-inset { padding-inline: 20px; }
   /* 上部バーのぶん、100vh のままだと画面からはみ出す */
-  .ib-setup-main { min-height: calc(100dvh - 56px); padding: 24px 20px 40px; }
+  .ib-setup-main { min-height: calc(100dvh - 56px); padding: 28px 20px 40px; }
 
   /* iOS は 16px 未満の入力にフォーカスすると画面を勝手に拡大する */
   .input { font-size: 16px; }
+
+  /* 入力欄の下に常設の文字を置かない。
+     物理キーボードが無いのでキー操作のヒントは意味を持たず、
+     文字数も上限が近づくまでは知る必要がない（残り 200 字で出る）。 */
+  .ib-kbd-hint { display: none; }
+  .ib-char-count:not(.ib-char-count-near) { display: none; }
 }
 
 /* ── 560px：スマホ ── */
@@ -592,14 +626,14 @@ textarea.input { min-height: 90px; resize: vertical; }
   .ib-footer { padding: 18px 16px; }
 
   .ib-hero { padding: 20px 16px; gap: 24px; }
-  .ib-hero-title { font-size: 28px; }
-  .ib-how-title { font-size: 24px; }
-  .ib-cta-title { font-size: 20px; }
-  .ib-page-title { font-size: 21px; }
-  .ib-greeting { font-size: 22px; }
+  .ib-hero-title { font-size: 27px; }
+  .ib-how-title { font-size: 22px; }
+  .ib-cta-title { font-size: 19px; }
+  .ib-page-title { font-size: 19px; }
+  .ib-greeting { font-size: 21px; }
   .ib-inset { padding-inline: 16px; }
-  .ib-setup-main { padding: 20px 16px 32px; }
-  .ib-setup-card { padding: 18px; }
+  .ib-setup-main { padding: 22px 16px 32px; }
+  .ib-setup-card { padding: 20px; }
   /* 評価軸カード：狭い画面ではアイコンぶんの字下げをやめ、本文に幅を使う */
   .ib-axis-comment { padding-left: 0; }
 
@@ -614,14 +648,16 @@ textarea.input { min-height: 90px; resize: vertical; }
   .ib-session-stats { display: flex; gap: 10px; text-align: left; }
   .ib-session-chevron { display: none; }
 
-  /* live：1 画面に収める。進捗バーは「質問 n / m 問」と同じ情報なので落とす。 */
-  .ib-live { --ta-font: 16px; --composer-pad-y: 6px; --footer-pad-b: 14px; }
-  .ib-live-bar { padding: 12px; gap: 8px; }
+  /* live：1 画面に収める。進捗バーは「質問 n / m 問」と同じ情報なので落とす。
+     入力の 16px は iOS の自動ズーム対策。そのぶん文字が場所を取るので、
+     ボタンとの間隔を詰めて本文に幅を回す。タップ領域は 44px を下回らせない。 */
+  .ib-live { --ta-font: 16px; --composer-pad-y: 12px; --footer-pad-b: 16px; --composer-btn: 44px; }
+  .ib-composer { gap: 4px; }
+  .ib-live-bar { padding: 14px 16px; gap: 8px; }
   .ib-live-progress { display: none; }
   .ib-live-question { font-size: 20px; }
   .ib-live-main { padding-left: 16px; padding-right: 16px; }
-  .ib-live-footer { padding-left: 12px; padding-right: 12px; }
-  .ib-composer { padding-left: 16px; }
+  .ib-live-footer { padding-left: 16px; padding-right: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

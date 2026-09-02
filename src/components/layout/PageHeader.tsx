@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { LcArrowLeft } from "@/components/ui/icons";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 type PageHeaderProps = {
   /** The page's main heading (rendered as the single <h1>). */
@@ -35,7 +34,7 @@ export function PageHeader({ title, subtitle, back, right }: PageHeaderProps) {
         )}
         <h1 className="ib-page-title">{title}</h1>
         {subtitle && (
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>{subtitle}</p>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--ink-3)" }}>{subtitle}</p>
         )}
       </div>
       {right && <div style={{ flex: "none" }}>{right}</div>}

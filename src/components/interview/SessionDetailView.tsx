@@ -6,15 +6,42 @@ import { LcRepeat, LcScale, LcEye, LcCompass, LcChevronDown, LcAlert } from "@/c
 import { FEEDBACK_TIMEOUT_MS } from "@/domain/feedback/services/determineFeedbackStatus";
 import { interviewerTypeLabel } from "@/domain/interview/model/InterviewerType.vo";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 const POLL_INTERVAL_MS = 3000;
 
 const AXIS_ORDER = ["SELF_AWARENESS", "VALUES_JUDGMENT", "REPRODUCIBILITY", "WORLDVIEW"];
-const AXIS_META: Record<string, { caption: string; icon: React.ReactNode }> = {
-  REPRODUCIBILITY: { caption: "他の場面でも同じように話せそうかを見ています", icon: <LcRepeat /> },
-  VALUES_JUDGMENT: { caption: "何を基準に意思決定しているかを見ています", icon: <LcScale /> },
-  SELF_AWARENESS: { caption: "自分をどれだけ客観的に捉えられているかを見ています", icon: <LcEye /> },
-  WORLDVIEW: { caption: "物事への関心の広さや深さを見ています", icon: <LcCompass /> },
+/**
+ * 軸ごとの色は、この製品で唯一の彩度。クロームは無彩色で通し、ここだけが色を持つ。
+ * 白地でのコントラストは 4.2〜4.6:1 で、アイコン（3:1 以上）の基準は満たすが
+ * 文字色には使わないこと。
+ */
+const AXIS_META: Record<
+  string,
+  { caption: string; icon: React.ReactNode; color: string; tint: string }
+> = {
+  REPRODUCIBILITY: {
+    caption: "他の場面でも同じように話せそうかを見ています",
+    icon: <LcRepeat />,
+    color: "var(--axis-reproducibility)",
+    tint: "var(--axis-reproducibility-tint)",
+  },
+  VALUES_JUDGMENT: {
+    caption: "何を基準に意思決定しているかを見ています",
+    icon: <LcScale />,
+    color: "var(--axis-values)",
+    tint: "var(--axis-values-tint)",
+  },
+  SELF_AWARENESS: {
+    caption: "自分をどれだけ客観的に捉えられているかを見ています",
+    icon: <LcEye />,
+    color: "var(--axis-self)",
+    tint: "var(--axis-self-tint)",
+  },
+  WORLDVIEW: {
+    caption: "物事への関心の広さや深さを見ています",
+    icon: <LcCompass />,
+    color: "var(--axis-worldview)",
+    tint: "var(--axis-worldview-tint)",
+  },
 };
 
 /**
@@ -46,27 +73,32 @@ function LoadingOrb({ label, sub }: { label: string; sub: string }) {
   return (
     <div className="ib-section" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: "64px 0", textAlign: "center" }}>
       <div style={{ position: "relative", width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
-        <span style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
+        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-neutral-300)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
+        <span style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--color-neutral-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
       </div>
-      <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{label}</div>
-      <p style={{ margin: 0, fontSize: 13, color: muted(55), maxWidth: "34ch", fontFamily: "var(--font-jp)" }}>{sub}</p>
+      <div style={{ fontSize: 16, fontWeight: 500 }}>{label}</div>
+      <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", maxWidth: "34ch" }}>{sub}</p>
     </div>
   );
 }
 
 function AxisCard({ axis, label, comment }: { axis: string; label: string; comment: string }) {
-  const meta = AXIS_META[axis] ?? { caption: "", icon: null };
+  const meta = AXIS_META[axis] ?? {
+    caption: "",
+    icon: null,
+    color: "var(--ink-3)",
+    tint: "var(--color-surface)",
+  };
   return (
-    <div className="card elev-sm" style={{ padding: 16, gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: "var(--color-accent-100)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-accent-700)" }}>{meta.icon}</div>
-        <div>
-          <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{label}</div>
-          <div style={{ fontSize: 11.5, color: muted(50), fontFamily: "var(--font-jp)" }}>{meta.caption}</div>
+    <div className="card" style={{ padding: "20px 22px", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+        <div style={{ width: 30, height: 30, flex: "none", borderRadius: "50%", background: meta.tint, display: "flex", alignItems: "center", justifyContent: "center", color: meta.color }}>{meta.icon}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.45 }}>{label}</div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-3)", lineHeight: 1.5 }}>{meta.caption}</div>
         </div>
       </div>
-      <p className="ib-axis-comment" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.85, fontFamily: "var(--font-jp)" }}>{comment}</p>
+      <p className="ib-axis-comment" style={{ margin: 0, fontSize: 13.5, lineHeight: 1.95, color: "var(--ink-2)" }}>{comment}</p>
     </div>
   );
 }
@@ -76,13 +108,13 @@ function QARow({ q, open, onToggle, last }: { q: QuestionWithAnswer; open: boole
     <div style={{ borderBottom: last ? "none" : "1px solid var(--color-divider)" }}>
       <button className="ib-row" onClick={onToggle} style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", boxSizing: "border-box", padding: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, lineHeight: 1.7, overflow: "hidden", textOverflow: open ? "clip" : "ellipsis", whiteSpace: open ? "normal" : "nowrap", fontFamily: "var(--font-jp)" }}>{q.content}</span>
+          <span style={{ fontSize: 13.5, fontWeight: 500, lineHeight: 1.7, overflow: "hidden", textOverflow: open ? "clip" : "ellipsis", whiteSpace: open ? "normal" : "nowrap" }}>{q.content}</span>
         </div>
         <LcChevronDown size={16} open={open} />
       </button>
       {open && (
         <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 13.5, lineHeight: 1.8, whiteSpace: "pre-wrap", fontFamily: "var(--font-jp)" }}>{q.answer?.content}</div>
+          <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 13.5, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{q.answer?.content}</div>
         </div>
       )}
     </div>
@@ -133,7 +165,7 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
 
   if (notFound) {
     return (
-      <div className="card elev-sm" style={{ padding: 24, textAlign: "center", fontSize: 13, color: muted(55), fontFamily: "var(--font-jp)" }}>
+      <div className="card" style={{ padding: 24, textAlign: "center", fontSize: 13, color: "var(--ink-3)" }}>
         セッションが見つかりませんでした。
       </div>
     );
@@ -163,8 +195,8 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       {/* overview */}
       <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontFamily: "var(--font-jp)" }}>{detail.companyName ?? "面接"}　{stageLabel(detail.selectionStage)}</h2>
-          <span style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{dateLabel}</span>
+          <h2 style={{ margin: 0, fontSize: 22 }}>{detail.companyName ?? "面接"}　{stageLabel(detail.selectionStage)}</h2>
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{dateLabel}</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <span className="tag tag-neutral">{[detail.jobMajor, detail.jobMinor].filter(Boolean).join(" / ") || [detail.industryMajor, detail.industryMinor].filter(Boolean).join(" / ") || "—"}</span>
@@ -179,24 +211,24 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       )}
 
       {fb.status === "failed" && !awaitingGeneration && (
-        <div className="ib-section card elev-sm" style={{ padding: 24, gap: 12, alignItems: "center", textAlign: "center" }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-accent-100)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-accent-700)" }}><LcAlert size={20} /></div>
-          <div style={{ fontSize: 15, fontWeight: 600, fontFamily: "var(--font-jp)" }}>フィードバックを準備できませんでした</div>
-          <p style={{ margin: 0, fontSize: 13, color: muted(55), maxWidth: "38ch", fontFamily: "var(--font-jp)" }}>回答の内容は保存されています。時間をおいて、もう一度お試しください。</p>
+        <div className="ib-section card" style={{ padding: 24, gap: 12, alignItems: "center", textAlign: "center" }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-danger-bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-danger)" }}><LcAlert size={20} /></div>
+          <div style={{ fontSize: 15, fontWeight: 500 }}>フィードバックを準備できませんでした</div>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", maxWidth: "38ch" }}>回答の内容は保存されています。時間をおいて、もう一度お試しください。</p>
           <button className="btn btn-primary" onClick={() => { setDetail(null); setRetry((r) => r + 1); }} style={{ marginTop: 4 }}>もう一度生成する</button>
         </div>
       )}
 
       {fb.status === "completed" && (
         <>
-          <section className="ib-section card elev-md" style={{ padding: 24, gap: 8, background: "var(--color-surface)" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>面接全体の総評</div>
-            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.9, fontFamily: "var(--font-jp)" }}>{fb.overallComment}</p>
+          <section className="ib-section card" style={{ padding: 24, gap: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-3)" }}>面接全体の総評</div>
+            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.9 }}>{fb.overallComment}</p>
           </section>
 
           <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div>
-              <h3 style={{ margin: "0 0 4px", fontSize: 17, fontFamily: "var(--font-jp)" }}>4つの視点からの気づき</h3>
+              <h3 style={{ margin: "0 0 4px", fontSize: 17 }}>4つの視点からの気づき</h3>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {axes.map((a) => <AxisCard key={a.axis} axis={a.axis} label={a.axisLabel} comment={a.comment} />)}
@@ -209,10 +241,10 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       {qa.length > 0 && (
         <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <h3 style={{ margin: 0, fontSize: 17, fontFamily: "var(--font-jp)" }}>質問と回答の振り返り</h3>
+            <h3 style={{ margin: 0, fontSize: 17 }}>質問と回答の振り返り</h3>
             <button className="btn btn-ghost" onClick={() => setOpenMap(allOpen ? {} : Object.fromEntries(qa.map((_, i) => [i, true])))} style={{ fontSize: 12.5 }}>{allOpen ? "すべて閉じる" : "すべて開く"}</button>
           </div>
-          <div className="card elev-sm" style={{ padding: 0 }}>
+          <div className="card" style={{ padding: 0 }}>
             {qa.map((q, i) => (
               <QARow key={q.id} q={q} open={!!openMap[i]} onToggle={() => setOpenMap((o) => ({ ...o, [i]: !o[i] }))} last={i === qa.length - 1} />
             ))}

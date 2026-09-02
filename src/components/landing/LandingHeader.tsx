@@ -6,7 +6,7 @@ export function LandingHeader() {
     <header
       style={{
         padding: "16px 0",
-        boxShadow: "var(--shadow-sm)",
+        borderBottom: "1px solid var(--color-divider)",
         background: "var(--color-bg)",
         position: "sticky",
         top: 0,
@@ -22,7 +22,7 @@ export function LandingHeader() {
           gap: 16,
         }}
       >
-        <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 19, letterSpacing: "-0.02em" }}>
+        <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 19, letterSpacing: "-0.02em" }}>
           interview buddy
         </div>
         <Link href="/login" className="btn btn-primary" style={{ gap: 8, whiteSpace: "nowrap" }}>

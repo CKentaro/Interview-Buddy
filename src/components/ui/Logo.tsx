@@ -14,7 +14,7 @@ export function Logo({ size = 18, subtitle, color = "var(--color-text)" }: LogoP
       <div
         style={{
           fontFamily: "var(--font-heading)",
-          fontWeight: 800,
+          fontWeight: 700,
           fontSize: size,
           letterSpacing: "-0.02em",
           color,
@@ -28,8 +28,7 @@ export function Logo({ size = 18, subtitle, color = "var(--color-text)" }: LogoP
         <div
           style={{
             fontSize: 11,
-            fontFamily: "var(--font-jp)",
-            color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+            color: "var(--ink-3)",
             marginTop: 2,
           }}
         >

@@ -5,7 +5,6 @@ import { PrismaUserRepository } from "@/infrastructure/prisma/PrismaUserReposito
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteAccountSection } from "@/components/profile/DeleteAccountSection";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 function relLabel(date: Date | null): string {
   if (!date) return "なし";
@@ -20,10 +19,10 @@ function relLabel(date: Date | null): string {
 function Stat({ value, unit, label }: { value: string; unit?: string; label: string }) {
   return (
     <div>
-      <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: 28, lineHeight: 1 }}>
-        {value}{unit && <span style={{ fontSize: 14, fontWeight: 400, fontFamily: "var(--font-jp)" }}>{unit}</span>}
+      <div style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 28, lineHeight: 1 }}>
+        {value}{unit && <span style={{ fontSize: 14, fontWeight: 400 }}>{unit}</span>}
       </div>
-      <div style={{ fontSize: 11.5, color: muted(55), marginTop: 4, fontFamily: "var(--font-jp)" }}>{label}</div>
+      <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 4 }}>{label}</div>
     </div>
   );
 }
@@ -41,23 +40,23 @@ export default async function ProfilePage() {
       <PageHeader title="プロフィール" subtitle="アカウントと練習の情報" />
 
       {/* user */}
-      <section className="card elev-md" style={{ padding: 24, flexDirection: "row", alignItems: "center", gap: 16 }}>
+      <section className="card" style={{ padding: 24, flexDirection: "row", alignItems: "center", gap: 16 }}>
         {profile.image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={profile.image} alt={profile.name ?? "ユーザー"} referrerPolicy="no-referrer" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", flex: "none" }} />
         ) : (
-          <div style={{ width: 64, height: 64, borderRadius: "50%", flex: "none", background: "var(--color-neutral-300)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, fontFamily: "var(--font-jp)" }}>{avatarChar}</div>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", flex: "none", background: "var(--color-neutral-300)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700 }}>{avatarChar}</div>
         )}
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 19, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{profile.name ?? "名前未設定"}</div>
-          <div style={{ fontSize: 13, color: muted(60), marginTop: 2 }}>{profile.email}</div>
+          <div style={{ fontSize: 19, fontWeight: 500 }}>{profile.name ?? "名前未設定"}</div>
+          <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>{profile.email}</div>
         </div>
       </section>
 
       {/* stats */}
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>これまでの積み重ね</h3>
-        <div className="card elev-sm ib-stat-grid">
+        <h3 style={{ margin: 0, fontSize: 16 }}>これまでの積み重ね</h3>
+        <div className="card ib-stat-grid">
           <Stat value={String(profile.totalSessions)} unit="回" label="練習回数" />
           <Stat value={relLabel(profile.lastSessionAt)} label="最終練習日" />
         </div>
@@ -65,14 +64,14 @@ export default async function ProfilePage() {
 
       {/* account */}
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontFamily: "var(--font-jp)" }}>アカウント</h3>
-        <div className="card elev-sm ib-split" style={{ padding: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>アカウント</h3>
+        <div className="card ib-split" style={{ padding: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/google-g.svg" alt="" width={20} height={20} style={{ flex: "none" }} />
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>Google アカウント連携</div>
-              <div style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{profile.email} と連携済みです</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>Google アカウント連携</div>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{profile.email} と連携済みです</div>
             </div>
           </div>
           <span className="tag tag-accent">連携済み</span>

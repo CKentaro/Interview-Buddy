@@ -1,33 +1,24 @@
 import type { Metadata } from "next";
-import { Archivo, Noto_Sans_JP, JetBrains_Mono, Roboto } from "next/font/google";
+import { Zen_Kaku_Gothic_New, Roboto } from "next/font/google";
 import "./globals.css";
 import { SessionProviderWrapper } from "@/components/providers/SessionProviderWrapper";
 
-const archivo = Archivo({
-  variable: "--font-archivo",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-const notoSansJP = Noto_Sans_JP({
-  variable: "--font-noto-jp",
-  weight: ["400", "500", "600", "700", "800"],
+/**
+ * 本文・見出し・UI のすべてを 1 書体で通す。日本語が主な本文なので、
+ * ラテン専用フォントを先に置いて日本語をフォールバックさせる構成は取らない。
+ * 日本語サブセットは巨大なため preload しない（Noto Sans JP のときと同じ理由）。
+ */
+const zenKaku = Zen_Kaku_Gothic_New({
+  variable: "--font-zen-kaku",
+  weight: ["400", "500", "700"],
   display: "swap",
   preload: false,
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  display: "swap",
 });
 
 /**
  * Google サインインボタン専用（.btn-google）。
  * ブランディング ガイドラインがボタン文言に Roboto Medium を指定しているため、
- * 他の用途には使わない。日本語部分は Noto Sans JP へフォールバックする。
+ * 他の用途には使わない。日本語部分は Zen Kaku Gothic New へフォールバックする。
  */
 const roboto = Roboto({
   variable: "--font-roboto",
@@ -47,10 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ja"
-      className={`${archivo.variable} ${notoSansJP.variable} ${jetBrainsMono.variable} ${roboto.variable}`}
-    >
+    <html lang="ja" className={`${zenKaku.variable} ${roboto.variable}`}>
       <body>
         <SessionProviderWrapper>{children}</SessionProviderWrapper>
       </body>

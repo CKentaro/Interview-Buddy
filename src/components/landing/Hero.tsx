@@ -2,17 +2,16 @@ import Link from "next/link";
 import { LcUser } from "@/components/ui/icons";
 import { InterviewPreview } from "./InterviewPreview";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 export function Hero() {
   return (
     <section className="ib-hero">
       <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--color-accent-700)" }}>interview buddy</span>
+        <span style={{ fontSize: 12, fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--ink-3)" }}>interview buddy</span>
         <h1 className="ib-hero-title">
           面接を、もっと落ち着いて<br />練習できる場所に。
         </h1>
-        <p style={{ fontSize: 16, lineHeight: 1.8, margin: 0, maxWidth: "46ch", color: muted(75), fontFamily: "var(--font-jp)" }}>
+        <p style={{ fontSize: 16, lineHeight: 1.8, margin: 0, maxWidth: "46ch", color: "var(--ink-2)" }}>
           AIと対話しながら、模擬面接を行います。点数や偏差値ではなく「ことば」で気づきを受け取り、自分の語り方を少しずつ整えていけます。
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
@@ -20,7 +19,7 @@ export function Hero() {
             <LcUser size={18} />
             <span>Googleでログインしてはじめる</span>
           </Link>
-          <span style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>1回あたり、目安5分からはじめられます。</span>
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>1回あたり、目安5分からはじめられます。</span>
         </div>
       </div>
 

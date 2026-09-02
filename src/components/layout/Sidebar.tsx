@@ -48,8 +48,7 @@ function Avatar({ user }: { user?: User | null }) {
         alignItems: "center",
         justifyContent: "center",
         fontSize: 12,
-        fontWeight: 800,
-        fontFamily: "var(--font-jp)",
+        fontWeight: 700,
       }}
     >
       {avatarChar(user?.name)}
@@ -178,10 +177,10 @@ export function Sidebar({ user }: { user?: User | null }) {
           >
             <Avatar user={user} />
             <div className="ib-side-label" style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user?.name ?? "ゲスト"}
               </div>
-              <div style={{ fontSize: 11, fontWeight: 400, color: "color-mix(in srgb, var(--color-text) 50%, transparent)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <div style={{ fontSize: 11, fontWeight: 400, color: "var(--ink-3)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {user?.email ?? ""}
               </div>
             </div>

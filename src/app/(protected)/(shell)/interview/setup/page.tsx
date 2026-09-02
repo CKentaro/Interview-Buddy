@@ -21,7 +21,6 @@ import type {
 const INDUSTRY: Record<string, readonly string[]> = INDUSTRY_TAXONOMY;
 const ROLE: Record<string, readonly string[]> = ROLE_TAXONOMY;
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 /* ── Static data ── */
 const PHASES = [
@@ -75,8 +74,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Choice({ label, desc, active, onSelect }: { label: string; desc: string; active: boolean; onSelect: () => void }) {
   return (
     <button className={`ib-choice${active ? " ib-choice-active" : ""}`} onClick={onSelect} type="button">
-      <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{label}</div>
-      <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)" }}>{desc}</div>
+      <div style={{ fontSize: 14.5, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{desc}</div>
     </button>
   );
 }
@@ -273,17 +272,16 @@ export default function SetupPage() {
           {/* progress */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: muted(55), fontFamily: "var(--font-jp)" }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-3)" }}>
                 {editingFromConfirm ? "内容を編集しています" : `ステップ ${step + 1} / ${STEP_TOTAL}`}
               </div>
-              <div style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{STEP_TITLES[step]}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{STEP_TITLES[step]}</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {STEP_TITLES.map((_, i) => (
                 <div key={i} style={{
-                  flex: 1, height: 6, borderRadius: 999,
-                  background: i <= step ? "var(--color-accent-500)" : "var(--color-neutral-300)",
-                  boxShadow: i === step ? "0 0 0 4px var(--color-accent-100)" : "none",
+                  flex: 1, height: 3, borderRadius: 999,
+                  background: i <= step ? "var(--color-accent)" : "var(--color-neutral-300)",
                 }} />
               ))}
             </div>
@@ -291,11 +289,11 @@ export default function SetupPage() {
 
           {/* 求人 URL からの自動入力（任意）と、その下の手入力は別のカードに分ける。 */}
           {step === 0 && (
-            <div className="card elev-md ib-section ib-setup-card">
+            <div className="card ib-section ib-setup-card">
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>求人ページの URL から自動入力する</div>
-                  <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)", lineHeight: 1.7 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 500 }}>求人ページの URL から自動入力する</div>
+                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.7 }}>
                     求人票や企業の採用ページの URL を読み込むと、企業名・業界・職種を自動で入力します。
                   </div>
                 </div>
@@ -319,7 +317,7 @@ export default function SetupPage() {
                   >
                     {analyzing ? (
                       <>
-                        <span style={{ width: 13, height: 13, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent-500)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+                        <span style={{ width: 13, height: 13, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
                         <span>読み込み中</span>
                       </>
                     ) : (
@@ -329,9 +327,9 @@ export default function SetupPage() {
                 </div>
 
                 {analysis?.status === "failed" && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-                    <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+                    <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>
                       {FAILURE_MESSAGE[analysis.reason]}
                     </div>
                   </div>
@@ -339,7 +337,7 @@ export default function SetupPage() {
 
                 {analyzed && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "14px 16px" }}>
-                    <div style={{ fontSize: 12.5, lineHeight: 1.7, color: muted(70), fontFamily: "var(--font-jp)" }}>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.7, color: "var(--ink-2)" }}>
                       {PAGE_KIND_MESSAGE[analyzed.pageKind]}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -348,9 +346,9 @@ export default function SetupPage() {
                         { label: "業界", value: analyzed.industryMajor && analyzed.industryMinor ? `${analyzed.industryMajor} ／ ${analyzed.industryMinor}` : null },
                         { label: "職種", value: analyzed.jobMajor && analyzed.jobMinor ? `${analyzed.jobMajor} ／ ${analyzed.jobMinor}` : null },
                       ].map((row) => (
-                        <div key={row.label} style={{ display: "flex", gap: 12, fontSize: 12.5, fontFamily: "var(--font-jp)" }}>
-                          <span style={{ flex: "none", width: 48, color: muted(55) }}>{row.label}</span>
-                          <span style={{ color: row.value ? "var(--color-text)" : muted(45) }}>
+                        <div key={row.label} style={{ display: "flex", gap: 12, fontSize: 12.5 }}>
+                          <span style={{ flex: "none", width: 48, color: "var(--ink-3)" }}>{row.label}</span>
+                          <span style={{ color: row.value ? "var(--color-text)" : "var(--ink-3)" }}>
                             {row.value ?? "読み取れませんでした（手入力してください）"}
                           </span>
                         </div>
@@ -365,17 +363,17 @@ export default function SetupPage() {
           {step === 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
-              <span style={{ flex: "none", fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>手動で入力する</span>
+              <span style={{ flex: "none", fontSize: 12, color: "var(--ink-3)" }}>手動で入力する</span>
               <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
             </div>
           )}
 
-          <div className="card elev-md ib-section ib-setup-card" key={step}>
+          <div className="card ib-section ib-setup-card" key={step}>
             {step === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>志望業界を教えてください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>大まかな分野から、当てはまるものを選んでください。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>志望業界を教えてください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>大まかな分野から、当てはまるものを選んでください。</p>
                 </div>
                 <Field label="業界（大分類）">
                   <select className="input" value={form.industryMajor} onChange={(e) => patch({ industryMajor: e.target.value, industryMinor: "" })}>
@@ -397,8 +395,8 @@ export default function SetupPage() {
             {step === 1 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>志望企業と職種を教えてください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>企業名は自由に入力できます。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>志望企業と職種を教えてください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>企業名は自由に入力できます。</p>
                 </div>
                 <Field label="志望企業名">
                   <input className="input" type="text" placeholder="例：株式会社interview buddy" value={form.companyName} onChange={(e) => patch({ companyName: e.target.value })} />
@@ -423,8 +421,8 @@ export default function SetupPage() {
             {step === 2 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>選考フェーズを選んでください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>フェーズによって、面接の性格が変わります。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>選考フェーズを選んでください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>フェーズによって、面接の性格が変わります。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {PHASES.map((p) => <Choice key={p.key} label={p.label} desc={p.desc} active={form.phase === p.key} onSelect={() => patch({ phase: p.key })} />)}
@@ -435,8 +433,8 @@ export default function SetupPage() {
             {step === 3 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>面接の雰囲気を選んでください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>AI がこのトーンを再現します。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>面接の雰囲気を選んでください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>AI がこのトーンを再現します。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {INTERVIEWERS.map((t) => <Choice key={t.key} label={t.label} desc={t.desc} active={form.interviewerType === t.key} onSelect={() => patch({ interviewerType: t.key })} />)}
@@ -444,10 +442,10 @@ export default function SetupPage() {
                 <div className="hr" style={{ margin: 0 }} />
                 <div className="ib-split">
                   <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>AI の音声で質問を読み上げる</div>
-                    <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)" }}>オフにすると、テキストのみで進行します。</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 500 }}>AI の音声で質問を読み上げる</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>オフにすると、テキストのみで進行します。</div>
                     {voiceQuota !== null && (
-                      <div style={{ marginTop: 4, fontSize: 12, fontFamily: "var(--font-jp)", color: voiceExhausted ? "var(--color-accent-700)" : muted(55) }}>
+                      <div style={{ marginTop: 4, fontSize: 12, color: voiceExhausted ? "var(--ink-3)" : "var(--ink-3)" }}>
                         {voiceExhausted
                           ? `本日の音声利用枠（1日${voiceQuota.limit}回）は使い切りました。`
                           : `本日の残り音声セッション：${voiceQuota.remaining} / ${voiceQuota.limit} 回`}
@@ -459,9 +457,9 @@ export default function SetupPage() {
                     onClick={() => { if (!voiceExhausted) patch({ voiceOn: !form.voiceOn }); }}
                     aria-pressed={form.voiceOn}
                     disabled={voiceExhausted}
-                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: form.voiceOn ? "var(--color-accent-500)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: form.voiceOn ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
                   >
-                    <span style={{ position: "absolute", top: 2, left: form.voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", transition: "left .15s ease" }} />
+                    <span style={{ position: "absolute", top: 2, left: form.voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
                   </button>
                 </div>
                 {/* 求人 URL を読み込めたときだけ、出題方法の選択肢を出す。 */}
@@ -470,12 +468,12 @@ export default function SetupPage() {
                     <div className="hr" style={{ margin: 0 }} />
                     <div className="ib-split">
                       <div>
-                        <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>読み込んだ求人の内容から質問をつくる</div>
-                        <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)", lineHeight: 1.7 }}>
+                        <div style={{ fontSize: 14.5, fontWeight: 500 }}>読み込んだ求人の内容から質問をつくる</div>
+                        <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.7 }}>
                           オフにすると、質問バンクから出題します。評価の4軸と質問数は、どちらでも変わりません。
                         </div>
                         {analyzed?.companyName && (
-                          <div style={{ marginTop: 4, fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
+                          <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-3)" }}>
                             読み込み済み：{analyzed.companyName}
                           </div>
                         )}
@@ -484,9 +482,9 @@ export default function SetupPage() {
                         type="button"
                         onClick={() => setUseGeneratedQuestions((v) => !v)}
                         aria-pressed={useGeneratedQuestions}
-                        style={{ all: "unset", cursor: "pointer", width: 44, height: 26, borderRadius: 999, background: useGeneratedQuestions ? "var(--color-accent-500)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                        style={{ all: "unset", cursor: "pointer", width: 44, height: 26, borderRadius: 999, background: useGeneratedQuestions ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
                       >
-                        <span style={{ position: "absolute", top: 2, left: useGeneratedQuestions ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", transition: "left .15s ease" }} />
+                        <span style={{ position: "absolute", top: 2, left: useGeneratedQuestions ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
                       </button>
                     </div>
                   </>
@@ -497,27 +495,29 @@ export default function SetupPage() {
             {step === 4 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>内容を確認しましょう</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>この内容で、面接練習を準備します。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>内容を確認しましょう</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>この内容で、面接練習を準備します。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {summary.map((row, i) => (
-                    <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < summary.length - 1 ? "1px solid var(--color-divider)" : "none" }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: muted(55), fontFamily: "var(--font-jp)" }}>{row.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{row.value}</div>
+                    <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 0", borderBottom: i < summary.length - 1 ? "1px solid var(--color-divider)" : "none" }}>
+                      {/* minWidth: 0 が無いと、値が長いときに左側が縮まず「編集」が
+                          1 文字幅まで潰れて縦書きのように見える。 */}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{row.label}</div>
+                        <div style={{ fontSize: 14, fontWeight: 500 }}>{row.value}</div>
                       </div>
-                      <button className="btn btn-ghost" onClick={() => startEditing(row.goto)} style={{ fontSize: 12 }}>編集</button>
+                      <button className="btn btn-ghost" onClick={() => startEditing(row.goto)} style={{ flex: "none", fontSize: 12 }}>編集</button>
                     </div>
                   ))}
                 </div>
-                <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12.5, lineHeight: 1.7, color: muted(65), fontFamily: "var(--font-jp)" }}>
+                <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12.5, lineHeight: 1.7, color: "var(--ink-2)" }}>
                   面接はいつでも途中で中断できます。送信済みの回答は保存され、HOME画面から後で再開できます。
                 </div>
                 {startError && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-                    <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>面接の準備を開始できませんでした。通信状況をご確認のうえ、もう一度お試しください。</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+                    <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>面接の準備を開始できませんでした。通信状況をご確認のうえ、もう一度お試しください。</div>
                   </div>
                 )}
                 <button className="btn btn-primary" onClick={startInterview} disabled={starting} style={{ width: "100%", justifyContent: "center", padding: 14, fontSize: 15, gap: 8 }}>
@@ -547,7 +547,7 @@ export default function SetupPage() {
                 戻る
               </button>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {showHint && <span style={{ fontSize: 12, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>すべての項目を選択してください</span>}
+                {showHint && <span style={{ fontSize: 12, color: "var(--color-danger)" }}>すべての項目を選択してください</span>}
                 {editingFromConfirm ? (
                   <button className="btn btn-primary" onClick={finishEditing}>編集を完了して確認に戻る</button>
                 ) : (
