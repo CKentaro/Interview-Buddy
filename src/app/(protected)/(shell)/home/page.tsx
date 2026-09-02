@@ -40,6 +40,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [resumingId, setResumingId] = useState<string | null>(null);
   const [resumeError, setResumeError] = useState("");
+  // 削除の確認ダイアログ。対象 ID を持っている間だけ開く。
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +91,32 @@ export default function HomePage() {
         "面接を再開できませんでした。画面を更新して、もう一度お試しください。",
       );
       setResumingId(null);
+    }
+  };
+
+  const deleteTarget =
+    resumableSessions.find((item) => item.id === deleteTargetId) ?? null;
+
+  const handleDelete = async () => {
+    if (deleteTargetId === null || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const response = await fetch(`/api/sessions/${deleteTargetId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+      setResumableSessions((current) =>
+        current.filter((item) => item.id !== deleteTargetId),
+      );
+      setDeleteTargetId(null);
+    } catch (error) {
+      console.error("面接の削除に失敗しました", error);
+      setDeleteError(
+        "面接を削除できませんでした。時間をおいて、もう一度お試しください。",
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -182,14 +212,31 @@ export default function HomePage() {
                         ・ 回答済み {item.answeredQuestionCount}問
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={resumingId !== null}
-                      onClick={() => void handleResume(item.id)}
-                    >
-                      {isResuming ? "再開しています…" : "再開する"}
-                    </button>
+                    <div style={{ display: "flex", gap: 8, flex: "none" }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={resumingId !== null}
+                        onClick={() => void handleResume(item.id)}
+                      >
+                        {isResuming ? "再開しています…" : "再開する"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={resumingId !== null}
+                        style={{
+                          color: "var(--color-danger)",
+                          borderColor: "var(--color-danger-line)",
+                        }}
+                        onClick={() => {
+                          setDeleteError("");
+                          setDeleteTargetId(item.id);
+                        }}
+                      >
+                        削除する
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -221,6 +268,61 @@ export default function HomePage() {
             </div>
           )}
         </section>
+
+        {deleteTarget && (
+          <div
+            className="dialog-backdrop"
+            onClick={() => !deleting && setDeleteTargetId(null)}
+          >
+            <div
+              className="dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ib-delete-session-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="dialog-title" id="ib-delete-session-title">
+                中断中の面接を削除しますか？
+              </div>
+              <div className="dialog-body">
+                「{deleteTarget.companyName ?? "（企業名未入力）"}」の中断中の面接を削除します。
+                送信済みの回答{deleteTarget.answeredQuestionCount}問も一緒に削除され、
+                この面接は再開できなくなります。この操作は取り消せません。
+              </div>
+              {deleteError && (
+                <p
+                  role="alert"
+                  style={{
+                    margin: 0,
+                    fontSize: 12.5,
+                    lineHeight: 1.7,
+                    color: "var(--color-danger)",
+                  }}
+                >
+                  {deleteError}
+                </p>
+              )}
+              <div className="dialog-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setDeleteTargetId(null)}
+                  disabled={deleting}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => void handleDelete()}
+                  disabled={deleting}
+                >
+                  {deleting ? "削除しています…" : "削除する"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </main>
   );
 }
