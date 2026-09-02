@@ -4,6 +4,7 @@ import { GetUserUseCase } from "@/application/user/GetUserUseCase";
 import { PrismaUserRepository } from "@/infrastructure/prisma/PrismaUserRepository";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DeleteAccountSection } from "@/components/profile/DeleteAccountSection";
+import { ProfileSettingsSection } from "@/components/profile/ProfileSettingsSection";
 
 
 function relLabel(date: Date | null): string {
@@ -33,25 +34,25 @@ export default async function ProfilePage() {
   const userId = session.user.id;
 
   const profile = await new GetUserUseCase(new PrismaUserRepository()).execute(userId, userId);
-  const avatarChar = (profile.name ?? "?").charAt(0).toUpperCase();
+  const { industry, job } = profile.careerPreference;
 
   return (
     <main className="ib-page" style={{ "--ib-page-max": "960px" } as React.CSSProperties}>
       <PageHeader title="プロフィール" subtitle="アカウントと練習の情報" />
 
-      {/* user */}
-      <section className="card" style={{ padding: 24, flexDirection: "row", alignItems: "center", gap: 16 }}>
-        {profile.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.image} alt={profile.name ?? "ユーザー"} referrerPolicy="no-referrer" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", flex: "none" }} />
-        ) : (
-          <div style={{ width: 64, height: 64, borderRadius: "50%", flex: "none", background: "var(--color-neutral-300)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700 }}>{avatarChar}</div>
-        )}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 19, fontWeight: 500 }}>{profile.name ?? "名前未設定"}</div>
-          <div style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 2 }}>{profile.email}</div>
-        </div>
-      </section>
+      {/* user + 志望設定（表示名と志望業界・職種はここで編集する） */}
+      <ProfileSettingsSection
+        userId={userId}
+        name={profile.name}
+        email={profile.email}
+        image={profile.image}
+        career={{
+          industryMajor: industry?.major ?? "",
+          industryMinor: industry?.minor ?? "",
+          jobMajor: job?.major ?? "",
+          jobMinor: job?.minor ?? "",
+        }}
+      />
 
       {/* stats */}
       <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>

@@ -9,6 +9,8 @@ function createRepository(
 ): IUserRepository {
   return {
     getProfileWithStats: vi.fn().mockResolvedValue(null),
+    isOnboardingCompleted: vi.fn().mockResolvedValue(true),
+    updateProfile: vi.fn().mockResolvedValue(true),
     delete: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

@@ -49,6 +49,19 @@ model User {
   emailVerified DateTime? // Auth.js: メール確認日時
   image         String? // Auth.js: プロフィール画像 URL
 
+  // 志望設定（初回オンボーディングで入力し、マイページで編集する）。
+  // すべて任意（スキップ可）で、値は careerTaxonomy の大分類 / 小分類。
+  // 面接設定画面の「マイページの設定から入力」の初期値として使う。
+  industryMajor String?
+  industryMinor String?
+  jobMajor      String?
+  jobMinor      String?
+
+  // オンボーディング（初回のプロフィール確認）を終えた日時。
+  // null の間だけ /onboarding へ誘導する。スキップした場合も記録するので、
+  // 「何も入力しなかった人」に毎回同じ画面を出すことはない。
+  onboardedAt DateTime?
+
   // Auth.js リレーション
   accounts Account[]
   sessions Session[]

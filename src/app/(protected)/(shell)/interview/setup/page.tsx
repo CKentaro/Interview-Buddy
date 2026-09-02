@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { DependentSelectField } from "@/components/ui/DependentSelectField";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
 import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
@@ -15,6 +17,7 @@ import type {
   JobPostingFailureReason,
   JobPostingPageKindResponse,
   SessionResponse,
+  UserMeResponse,
   VoiceUsageResponse,
 } from "@/app/api/types";
 
@@ -69,6 +72,15 @@ type FormData = {
   interviewLength: InterviewLength;
 };
 
+/**
+ * マイページに登録済みの志望設定のうち、このフォームへ流し込める分。
+ * 業界・職種はそれぞれ大小がそろっているときだけ持つ（片方だけでは選択が成立しない）。
+ */
+type ProfilePreference = {
+  industryMajor: string; industryMinor: string;
+  roleMajor: string; roleMinor: string;
+};
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="field">
@@ -89,11 +101,14 @@ function Choice({ label, desc, active, onSelect }: { label: string; desc: string
 
 export default function SetupPage() {
   const router = useRouter();
+  const { data: authSession } = useSession();
   const [step, setStep] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
   const [voiceQuota, setVoiceQuota] = useState<VoiceUsageResponse | null>(null);
+  /** マイページに登録済みの志望設定。未登録・取得失敗なら null。 */
+  const [profilePreference, setProfilePreference] = useState<ProfilePreference | null>(null);
   const [jobUrl, setJobUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   /** 解析結果。null は未解析。failed も保持して理由を表示する。 */
@@ -125,6 +140,36 @@ export default function SetupPage() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  // マイページの志望設定を読み込む（登録済みのときだけ「反映する」導線を出す）。
+  useEffect(() => {
+    const userId = authSession?.user?.id;
+    if (!userId) return;
+    let cancelled = false;
+    fetch(`/api/users/${userId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me: UserMeResponse | null) => {
+        if (cancelled || me === null) return;
+        // 大小そろった側だけを候補にする。両方そろわなければ導線自体を出さない。
+        const industry = me.industryMajor && me.industryMinor
+          ? { industryMajor: me.industryMajor, industryMinor: me.industryMinor }
+          : null;
+        const role = me.jobMajor && me.jobMinor
+          ? { roleMajor: me.jobMajor, roleMinor: me.jobMinor }
+          : null;
+        if (industry === null && role === null) return;
+        setProfilePreference({
+          industryMajor: industry?.industryMajor ?? "",
+          industryMinor: industry?.industryMinor ?? "",
+          roleMajor: role?.roleMajor ?? "",
+          roleMinor: role?.roleMinor ?? "",
+        });
+      })
+      .catch(() => {
+        /* 志望設定は補助情報のため、失敗しても手入力で先へ進める */
+      });
+    return () => { cancelled = true; };
+  }, [authSession?.user?.id]);
 
   const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
   const analyzed = analysis?.status === "analyzed" ? analysis : null;
@@ -172,6 +217,24 @@ export default function SetupPage() {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  /**
+   * マイページの志望設定をフォームへ反映する。
+   * 登録がある項目だけを上書きし、企業名や既に入力済みの他項目は触らない。
+   */
+  const applyProfilePreference = () => {
+    if (profilePreference === null) return;
+    setForm((f) => ({
+      ...f,
+      ...(profilePreference.industryMajor
+        ? { industryMajor: profilePreference.industryMajor, industryMinor: profilePreference.industryMinor }
+        : {}),
+      ...(profilePreference.roleMajor
+        ? { roleMajor: profilePreference.roleMajor, roleMinor: profilePreference.roleMinor }
+        : {}),
+    }));
+    setShowHint(false);
   };
 
   const patch = (p: Partial<FormData>) => { setForm((f) => ({ ...f, ...p })); setShowHint(false); };
@@ -376,6 +439,26 @@ export default function SetupPage() {
             </div>
           )}
 
+          {/* マイページの志望設定からの一括入力（登録済みのときだけ出す）。
+              求人 URL からの自動入力と同じく、最初のステップにだけ置く一括入力の導線。
+              1 度で業界(step 0)と職種(step 1)の両方を埋めるので、以降のステップでは出さない。
+              埋まった値はフォームに出るので、何が入るかの説明は添えず 1 行に収めている。 */}
+          {step === 0 && profilePreference !== null && (
+            <div className="card ib-section ib-split" style={{ padding: "12px 16px" }}>
+              <div style={{ fontSize: 14, fontWeight: 500, minWidth: 0 }}>
+                マイページの志望設定から入力する
+              </div>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={applyProfilePreference}
+                style={{ flex: "none" }}
+              >
+                反映する
+              </button>
+            </div>
+          )}
+
           {step === 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
@@ -397,14 +480,15 @@ export default function SetupPage() {
                     {Object.keys(INDUSTRY).map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                {form.industryMajor && (
-                  <Field label="業界（小分類）">
-                    <select className="input" value={form.industryMinor} onChange={(e) => patch({ industryMinor: e.target.value })}>
-                      <option value="">選択してください</option>
-                      {(INDUSTRY[form.industryMajor] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </Field>
-                )}
+                <DependentSelectField
+                  label="業界（小分類）"
+                  value={form.industryMinor}
+                  options={INDUSTRY[form.industryMajor] ?? []}
+                  enabled={!!form.industryMajor}
+                  placeholder="選択してください"
+                  lockedMessage="先に業界の大分類を選んでください。"
+                  onChange={(v) => patch({ industryMinor: v })}
+                />
               </div>
             )}
 
@@ -423,14 +507,15 @@ export default function SetupPage() {
                     {Object.keys(ROLE).map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                {form.roleMajor && (
-                  <Field label="職種（小分類）">
-                    <select className="input" value={form.roleMinor} onChange={(e) => patch({ roleMinor: e.target.value })}>
-                      <option value="">選択してください</option>
-                      {(ROLE[form.roleMajor] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </Field>
-                )}
+                <DependentSelectField
+                  label="職種（小分類）"
+                  value={form.roleMinor}
+                  options={ROLE[form.roleMajor] ?? []}
+                  enabled={!!form.roleMajor}
+                  placeholder="選択してください"
+                  lockedMessage="先に職種の大分類を選んでください。"
+                  onChange={(v) => patch({ roleMinor: v })}
+                />
               </div>
             )}
 

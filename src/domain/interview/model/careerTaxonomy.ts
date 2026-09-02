@@ -71,3 +71,21 @@ export function parseTaxonomyPair(
   const minor = value.slice(separatorIndex + SEPARATOR.length);
   return taxonomy[major]?.includes(minor) ? { major, minor } : null;
 }
+
+/**
+ * 大分類・小分類の 2 値をマスタと照合して組に戻す。
+ * どちらかが空、または組み合わせがマスタに無ければ null。
+ *
+ * 大小が別項目で入力される経路（プロフィールの志望設定など）の検証はここを通す。
+ * `parseTaxonomyPair` は `大分類/小分類` の 1 文字列（LLM の構造化出力）向け。
+ */
+export function toTaxonomyPair(
+  taxonomy: Taxonomy,
+  major: string | null | undefined,
+  minor: string | null | undefined,
+): TaxonomyPair | null {
+  if (!major || !minor) {
+    return null;
+  }
+  return taxonomy[major]?.includes(minor) ? { major, minor } : null;
+}

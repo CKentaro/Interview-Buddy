@@ -4,6 +4,7 @@ import {
   INDUSTRY_TAXONOMY,
   ROLE_TAXONOMY,
   parseTaxonomyPair,
+  toTaxonomyPair,
   toTaxonomyPairStrings,
 } from "./careerTaxonomy";
 
@@ -57,5 +58,27 @@ describe("parseTaxonomyPair", () => {
       major: "大分類",
       minor: "a/b",
     });
+  });
+});
+
+describe("toTaxonomyPair", () => {
+  it("マスタに存在する 2 値 → 組にして返す", () => {
+    expect(
+      toTaxonomyPair(ROLE_TAXONOMY, "技術系", "Webエンジニア"),
+    ).toEqual({ major: "技術系", minor: "Webエンジニア" });
+  });
+
+  it.each([
+    ["金融・保険", "ゲーム", "他の大分類の小分類"],
+    ["存在しない業界", "銀行", "大分類が無い"],
+    ["金融・保険", "", "小分類が空"],
+    ["", "銀行", "大分類が空"],
+  ])("(%s, %s) は null（%s）", (major, minor) => {
+    expect(toTaxonomyPair(INDUSTRY_TAXONOMY, major, minor)).toBeNull();
+  });
+
+  it.each([null, undefined])("%s は null", (value) => {
+    expect(toTaxonomyPair(INDUSTRY_TAXONOMY, value, "銀行")).toBeNull();
+    expect(toTaxonomyPair(INDUSTRY_TAXONOMY, "金融・保険", value)).toBeNull();
   });
 });

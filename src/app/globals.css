@@ -208,9 +208,16 @@ img { display: block; max-width: 100%; }
   transition: border-color .15s ease;
 }
 .input::placeholder { color: var(--ink-4); }
-.input:hover { border-color: var(--color-neutral-400); }
+.input:hover:not(:disabled) { border-color: var(--color-neutral-400); }
 .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
-select.input { cursor: pointer; }
+/* まだ操作できない入力（例：大分類を選ぶまでの小分類）。
+   枠は残したまま薄く沈め、選べないことをひと目で分かるようにする。
+   薄さの度合いはボタンの :disabled に合わせてある。 */
+.input:disabled {
+  cursor: not-allowed; opacity: 0.5;
+  background: var(--color-surface); border-color: var(--color-divider);
+}
+select.input:not(:disabled) { cursor: pointer; }
 textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
 
 /* ════════════════════════════════════════════════════════════════════════

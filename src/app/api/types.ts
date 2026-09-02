@@ -91,8 +91,30 @@ export type UserMeResponse = {
   name: string | null;
   email: string;
   image: string | null;
+  /** 志望設定。大小がそろってマスタに存在する組み合わせのときだけ値が入る。 */
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  /** 初回のプロフィール確認を終えているか（スキップでも true）。 */
+  onboardingCompleted: boolean;
   totalSessions: number;
   lastSessionAt: string | null;
+};
+
+/**
+ * PATCH /api/users/[id] のリクエスト。渡した項目だけを更新する。
+ * 志望設定の 4 項目は 1 組として扱い、いずれかを送ったら丸ごと差し替える。
+ */
+export type UpdateUserRequest = {
+  /** 表示名。空文字・null は「未設定に戻す」。 */
+  name?: string | null;
+  industryMajor?: string | null;
+  industryMinor?: string | null;
+  jobMajor?: string | null;
+  jobMinor?: string | null;
+  /** オンボーディングを完了として記録する（スキップ時も true を送る）。 */
+  completeOnboarding?: boolean;
 };
 
 // ─── 求人ページ解析（UC: 面接設定の自動入力）───────────────────
