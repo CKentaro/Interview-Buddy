@@ -313,7 +313,7 @@ export default function SetupPage() {
                   ))}
                 </div>
                 <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12.5, lineHeight: 1.7, color: muted(65), fontFamily: "var(--font-jp)" }}>
-                  面接はいつでも途中で中断できます。ただし中断すると、それまでの回答は保存されません。
+                  面接はいつでも途中で中断できます。送信済みの回答は保存され、HOME画面から後で再開できます。
                 </div>
                 {startError && (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>

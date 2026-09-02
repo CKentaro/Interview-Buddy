@@ -21,6 +21,38 @@ export type SessionListResponse = {
   sessions: SessionListItemResponse[];
 };
 
+// ─── Paused / resumable sessions ─────────────────────────────
+export type ResumableSessionItemResponse = {
+  id: string;
+  startedAt: string;
+  companyName: string | null;
+  industryMajor: string | null;
+  industryMinor: string | null;
+  jobMajor: string | null;
+  jobMinor: string | null;
+  selectionStage: string | null;
+  interviewerType: string | null;
+  answeredQuestionCount: number;
+};
+
+export type ResumableSessionListResponse = {
+  sessions: ResumableSessionItemResponse[];
+};
+
+export type PauseSessionResponse = {
+  sessionId: string;
+  status: "PAUSED";
+};
+
+export type ResumeSessionResponse = {
+  sessionId: string;
+  status: "IN_PROGRESS";
+  voiceEnabled: boolean;
+  interviewerType: string | null;
+  currentQuestion: QuestionResponse;
+  questionNumber: number;
+};
+
 // ─── Session detail ───────────────────────────────────────────
 export type QuestionWithAnswer = {
   id: string;

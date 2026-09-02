@@ -26,6 +26,13 @@ enum QuestionType {
   FOLLOW_UP // 深掘り質問
 }
 
+// 面接セッションの進行状態
+enum SessionStatus {
+  IN_PROGRESS // 面接中
+  PAUSED // 中断中（再開可能）
+  COMPLETED // 完了済み
+}
+
 // ── Auth.js (next-auth v5) が必要とするテーブル ──────────────────────────────
 
 model User {
@@ -82,12 +89,13 @@ model VerificationToken {
 // ── アプリ固有モデル ───────────────────────────────────────────────────────────
 
 model InterviewSession {
-  id              String     @id @default(cuid())
-  startedAt       DateTime   @default(now())
+  id              String        @id @default(cuid())
+  startedAt       DateTime      @default(now())
   endedAt         DateTime?
+  status          SessionStatus @default(IN_PROGRESS)
   // AI 音声読み上げ(TTS)を使う面接か。1 ユーザー 1 日 1 セッションのレート制限は
   // この列（voiceEnabled=true かつ本日開始のセッション数）で判定する。
-  voiceEnabled    Boolean    @default(false)
+  voiceEnabled    Boolean       @default(false)
   companyName     String?
   industryMajor   String?
   industryMinor   String?
@@ -96,9 +104,11 @@ model InterviewSession {
   selectionStage  String?
   interviewerType String?
   userId          String
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
   feedback        Feedback?
+
+  @@index([userId, status, startedAt])
 }
 
 model Question {
