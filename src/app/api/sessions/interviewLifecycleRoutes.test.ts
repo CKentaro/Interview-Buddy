@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import { POST as pausePost } from "./[id]/pause/route";
 import { POST as resumePost } from "./[id]/resume/route";
 import { GET as resumableGet } from "./resumable/route";
@@ -58,6 +59,7 @@ function resumeState(status: SessionStatus = SessionStatus.IN_PROGRESS) {
       endedAt: status === SessionStatus.COMPLETED ? new Date() : null,
       status,
       voiceEnabled: true,
+      interviewLength: InterviewLength.STANDARD,
       companyName: null,
       industryMajor: null,
       industryMinor: null,
@@ -77,6 +79,15 @@ function resumeState(status: SessionStatus = SessionStatus.IN_PROGRESS) {
         parentQuestionId: null,
         answer: null,
       },
+      ...[2, 3, 4].map((displayOrder) => ({
+        id: `main-${displayOrder}`,
+        type: QuestionType.MAIN,
+        content: `質問${displayOrder}`,
+        displayOrder,
+        primaryAxis: null,
+        parentQuestionId: null,
+        answer: null,
+      })),
     ],
   };
 }
@@ -119,6 +130,8 @@ describe("POST /api/sessions/[id]/resume", () => {
       status: "IN_PROGRESS",
       voiceEnabled: true,
       interviewerType: "friendly",
+      interviewLength: InterviewLength.STANDARD,
+      totalQuestionCount: 12,
       questionNumber: 1,
       currentQuestion: {
         id: "main-1",

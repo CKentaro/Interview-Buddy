@@ -4,6 +4,7 @@ import type { InterviewerType } from "@/domain/interview/model/InterviewerType.v
 import { resolveInterviewerType } from "@/domain/interview/model/InterviewerType.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { getInterviewLengthPolicy } from "@/domain/interview/model/interviewLengthPolicy";
 import {
   DuplicateAnswerError,
   type IInterviewSessionRepository,
@@ -134,6 +135,8 @@ export class AnswerQuestionUseCase {
     const decision = decideNextStep({
       answeredQuestionDepthCount: answeredQuestion.depthCount,
       nextMainQuestion,
+      maxFollowUpDepth: getInterviewLengthPolicy(session.interviewLength)
+        .maxFollowUpDepth,
     });
 
     switch (decision.action) {

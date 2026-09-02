@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import {
   INDUSTRY_TAXONOMY,
   ROLE_TAXONOMY,
@@ -33,6 +34,11 @@ const INTERVIEWERS = [
   { key: "neutral", label: INTERVIEWER_TYPE_LABEL.neutral, desc: "淡々とした、標準的な進行です。" },
   { key: "strict", label: INTERVIEWER_TYPE_LABEL.strict, desc: "圧迫気味の追及を再現します。" },
 ];
+const INTERVIEW_LENGTH_OPTIONS = [
+  { key: InterviewLength.SHORT, label: "短め・全8問", desc: "4つの観点をコンパクトに練習します。" },
+  { key: InterviewLength.STANDARD, label: "普通・全12問", desc: "4つの観点をそれぞれ深く練習します。" },
+  { key: InterviewLength.LONG, label: "長め・全18問", desc: "再現性と価値観を2つの大問で練習します。" },
+] as const;
 /** 解析に失敗した理由ごとの案内文。いずれの場合も手入力で先へ進める。 */
 const FAILURE_MESSAGE: Record<JobPostingFailureReason, string> = {
   INVALID_URL: "URL の形式が正しくないか、指定できないアドレスです。",
@@ -60,6 +66,7 @@ type FormData = {
   industryMajor: string; industryMinor: string;
   companyName: string; roleMajor: string; roleMinor: string;
   phase: string; interviewerType: string; voiceOn: boolean;
+  interviewLength: InterviewLength;
 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -100,6 +107,7 @@ export default function SetupPage() {
   const [form, setForm] = useState<FormData>({
     industryMajor: "", industryMinor: "", companyName: "",
     roleMajor: "", roleMinor: "", phase: "", interviewerType: "", voiceOn: false,
+    interviewLength: InterviewLength.STANDARD,
   });
 
   // 本日の音声ありセッション残回数を取得する（取得失敗時は表示を出さないだけ）。
@@ -202,6 +210,7 @@ export default function SetupPage() {
     industryMajor: "IT・インターネット", industryMinor: "Web・インターネットサービス",
     companyName: "株式会社interview buddy", roleMajor: "技術系", roleMinor: "Webエンジニア",
     phase: "second", interviewerType: "neutral", voiceOn: false,
+    interviewLength: InterviewLength.STANDARD,
   });
 
   const startInterview = async () => {
@@ -219,6 +228,7 @@ export default function SetupPage() {
           selectionStage: form.phase,
           interviewerType: form.interviewerType,
           voiceEnabled: form.voiceOn,
+          interviewLength: form.interviewLength,
           ...(analyzed ? { jobPosting: analyzed } : {}),
           generateQuestionsFromJobPosting: canGenerateQuestions && useGeneratedQuestions,
         }),
@@ -231,6 +241,8 @@ export default function SetupPage() {
         voiceEnabled: session.voiceEnabled,
         question: session.firstQuestion,
         questionNumber: 1,
+        totalQuestionCount: session.totalQuestionCount,
+        interviewLength: session.interviewLength,
         interviewerType: form.interviewerType,
         // 音声を要求したのに枠超過で無効化された場合のみ、ライブ画面で通知する。
         voiceLimited: form.voiceOn && !session.voiceEnabled,
@@ -248,10 +260,14 @@ export default function SetupPage() {
 
   const phaseLabel = PHASES.find((p) => p.key === form.phase)?.label ?? "未設定";
   const typeLabel = INTERVIEWERS.find((t) => t.key === form.interviewerType)?.label ?? "未設定";
+  const lengthLabel = INTERVIEW_LENGTH_OPTIONS.find(
+    (option) => option.key === form.interviewLength,
+  )?.label ?? "普通・全12問";
   const summary = [
     { label: "志望業界", value: form.industryMajor ? `${form.industryMajor} ／ ${form.industryMinor}` : "未設定", goto: 0 },
     { label: "志望企業・職種", value: `${form.companyName || "未設定"}${form.roleMajor ? `　・　${form.roleMajor} ／ ${form.roleMinor}` : ""}`, goto: 1 },
     { label: "選考フェーズ", value: phaseLabel, goto: 2 },
+    { label: "面接の長さ", value: lengthLabel, goto: 3 },
     { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${form.voiceOn ? "あり" : "なし"}`, goto: 3 },
   ];
 
@@ -438,6 +454,24 @@ export default function SetupPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {INTERVIEWERS.map((t) => <Choice key={t.key} label={t.label} desc={t.desc} active={form.interviewerType === t.key} onSelect={() => patch({ interviewerType: t.key })} />)}
+                </div>
+                <div className="hr" style={{ margin: 0 }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>面接の長さ</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>普通は4つの大問をそれぞれ2回深掘りします。</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {INTERVIEW_LENGTH_OPTIONS.map((option) => (
+                      <Choice
+                        key={option.key}
+                        label={option.label}
+                        desc={option.desc}
+                        active={form.interviewLength === option.key}
+                        onSelect={() => patch({ interviewLength: option.key })}
+                      />
+                    ))}
+                  </div>
                 </div>
                 <div className="hr" style={{ margin: 0 }} />
                 <div className="ib-split">

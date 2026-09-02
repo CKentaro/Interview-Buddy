@@ -33,6 +33,13 @@ enum SessionStatus {
   COMPLETED // 完了済み
 }
 
+// 面接の固定質問構成
+enum InterviewLength {
+  SHORT
+  STANDARD
+  LONG
+}
+
 // ── Auth.js (next-auth v5) が必要とするテーブル ──────────────────────────────
 
 model User {
@@ -95,7 +102,8 @@ model InterviewSession {
   status          SessionStatus @default(IN_PROGRESS)
   // AI 音声読み上げ(TTS)を使う面接か。1 ユーザー 1 日 1 セッションのレート制限は
   // この列（voiceEnabled=true かつ本日開始のセッション数）で判定する。
-  voiceEnabled    Boolean       @default(false)
+  voiceEnabled    Boolean         @default(false)
+  interviewLength InterviewLength @default(STANDARD)
   companyName     String?
   industryMajor   String?
   industryMinor   String?

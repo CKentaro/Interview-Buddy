@@ -9,8 +9,6 @@ import type {
   QuestionResponse,
   ResumeSessionResponse,
 } from "@/app/api/types";
-import { MAIN_QUESTION_COUNT } from "@/domain/interview/services/selectMainQuestions";
-import { MAX_FOLLOW_UP_DEPTH } from "@/domain/interview/services/decideNextStep";
 import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import { MAX_VOICE_SESSIONS_PER_DAY } from "@/domain/interview/model/voiceRateLimit";
 import {
@@ -20,8 +18,8 @@ import {
 } from "@/domain/interview/model/InterviewerType.vo";
 
 
-/** 1 セッションの総質問数 = 本質問 5 問 × (本質問 1 + 深掘り最大 2)。 */
-const TOTAL_QUESTION_COUNT = MAIN_QUESTION_COUNT * (1 + MAX_FOLLOW_UP_DEPTH);
+/** 旧セッションストレージに総数が無い場合は、従来の普通（15問）として扱う。 */
+const DEFAULT_TOTAL_QUESTION_COUNT = 15;
 
 /* 入力フォームの寸法（何行で打ち止めるか・main が下に空ける余白）は
    globals.css の .ib-live 側のカスタムプロパティが持っている。画面幅で変わるため、
@@ -42,6 +40,7 @@ type StoredSession = {
   voiceEnabled: boolean;
   question: QuestionResponse;
   questionNumber: number;
+  totalQuestionCount?: number;
   interviewerType?: string;
   voiceLimited?: boolean;
   /** 求人由来の質問生成を要求したが失敗し、質問バンクの出題に切り替わったか。 */
@@ -241,6 +240,9 @@ export default function LivePage() {
   const [voiceLimited, setVoiceLimited] = useState(false);
   const [questionsFellBackToBank, setQuestionsFellBackToBank] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
+  const [totalQuestionCount, setTotalQuestionCount] = useState(
+    DEFAULT_TOTAL_QUESTION_COUNT,
+  );
 
   // 質問の読み上げ中は true。面接官アバターの口パクに使う。
   const [speaking, setSpeaking] = useState(false);
@@ -367,6 +369,9 @@ export default function LivePage() {
       setVoiceLimited(stored.voiceLimited ?? false);
       setQuestionsFellBackToBank(stored.questionsFellBackToBank ?? false);
       setQuestionNumber(stored.questionNumber);
+      setTotalQuestionCount(
+        stored.totalQuestionCount ?? DEFAULT_TOTAL_QUESTION_COUNT,
+      );
 
       if (!stored.voiceEnabled) {
         setStatus("ready");
@@ -407,6 +412,7 @@ export default function LivePage() {
         setVoiceEnabled(resumed.voiceEnabled);
         setInterviewerType(resumedType);
         setQuestionNumber(resumed.questionNumber);
+        setTotalQuestionCount(resumed.totalQuestionCount);
         sessionStorage.setItem(
           "ib-session",
           JSON.stringify({
@@ -414,6 +420,7 @@ export default function LivePage() {
             voiceEnabled: resumed.voiceEnabled,
             question: resumed.currentQuestion,
             questionNumber: resumed.questionNumber,
+            totalQuestionCount: resumed.totalQuestionCount,
             interviewerType: resumed.interviewerType ?? undefined,
           }),
         );
@@ -509,6 +516,7 @@ export default function LivePage() {
         sessionId,
         question: next,
         questionNumber: questionNumber + 1,
+        totalQuestionCount,
         voiceEnabled,
         interviewerType,
         voiceLimited,
@@ -576,10 +584,10 @@ export default function LivePage() {
       <header className="ib-live-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, whiteSpace: "nowrap" }}>
           <span style={{ fontSize: 13, fontWeight: 500 }}>
-            質問 {questionNumber} / {TOTAL_QUESTION_COUNT} 問
+            質問 {questionNumber} / {totalQuestionCount} 問
           </span>
           <span aria-hidden className="ib-live-progress">
-            <span style={{ display: "block", height: "100%", width: `${(questionNumber / TOTAL_QUESTION_COUNT) * 100}%`, background: "var(--color-accent)", borderRadius: 2, transition: "width .4s ease" }} />
+            <span style={{ display: "block", height: "100%", width: `${Math.min(100, (questionNumber / totalQuestionCount) * 100)}%`, background: "var(--color-accent)", borderRadius: 2, transition: "width .4s ease" }} />
           </span>
           <span style={{ fontSize: 12, color: "var(--ink-3)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>

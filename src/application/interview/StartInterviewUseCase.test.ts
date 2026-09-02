@@ -6,6 +6,7 @@ import type { Question } from "@/domain/interview/model/Question.entity";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import type {
   CreateSessionInput,
   CreateSessionResult,
@@ -83,6 +84,7 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
         endedAt: null,
         status: SessionStatus.IN_PROGRESS,
         voiceEnabled: input.voiceEnabled ?? false,
+        interviewLength: input.interviewLength,
         companyName: input.companyName ?? null,
         industryMajor: input.industryMajor ?? null,
         industryMinor: input.industryMinor ?? null,
@@ -218,7 +220,7 @@ class FakeMainQuestionGenerationService implements IMainQuestionGenerationServic
 }
 
 describe("StartInterviewUseCase", () => {
-  it("質問バンクから本質問5問を選定し、セッション作成へ渡す", async () => {
+  it("未指定なら普通として質問バンクから本質問4問を選定し、セッション作成へ渡す", async () => {
     const repository = new FakeInterviewSessionRepository();
     const useCase = new StartInterviewUseCase(
       new FakeQuestionBankProvider(),
@@ -231,17 +233,41 @@ describe("StartInterviewUseCase", () => {
       voiceEnabled: false,
     });
 
-    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
     expect(repository.createSessionInput?.selectedQuestions.map((q) => q.displayOrder)).toEqual([
-      1, 2, 3, 4, 5,
+      1, 2, 3, 4,
     ]);
     expect(result.session.id).toBe("session-1");
     expect(result.firstQuestion.id).toBe("question-1");
     expect(result.speechText).toBe(result.firstQuestion.content);
+    expect(result.session.interviewLength).toBe(InterviewLength.STANDARD);
+    expect(result.totalQuestionCount).toBe(12);
   });
 
+  it.each([
+    [InterviewLength.SHORT, 4, 8],
+    [InterviewLength.LONG, 6, 18],
+  ] as const)(
+    "%s では本質問数と総質問数を長さポリシーから決める",
+    async (interviewLength, mainQuestionCount, totalQuestionCount) => {
+      const repository = new FakeInterviewSessionRepository();
+      const useCase = new StartInterviewUseCase(
+        new FakeQuestionBankProvider(),
+        repository,
+      );
+
+      const result = await useCase.execute({ userId: "user-1", interviewLength });
+
+      expect(repository.createSessionInput?.interviewLength).toBe(interviewLength);
+      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(
+        mainQuestionCount,
+      );
+      expect(result.totalQuestionCount).toBe(totalQuestionCount);
+    },
+  );
+
   it.each(["friendly", "neutral", "strict"] as const)(
-    "%sでも本質問数は共通の5問になる",
+    "%sでも普通の本質問数は共通の4問になる",
     async (interviewerType) => {
       const repository = new FakeInterviewSessionRepository();
       const useCase = new StartInterviewUseCase(
@@ -254,7 +280,7 @@ describe("StartInterviewUseCase", () => {
       expect(repository.createSessionInput?.interviewerType).toBe(
         interviewerType,
       );
-      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
     },
   );
 
@@ -361,7 +387,7 @@ describe("StartInterviewUseCase", () => {
     // 軸構成はバンク抽選と同じ計画を渡す（フィードバックの 4 軸集計が前提にしている）。
     expect(generationService.receivedContext?.plan).toBe(MAIN_QUESTION_AXIS_PLAN);
     expect(repository.createSessionInput?.selectedQuestions.map((q) => q.displayText))
-      .toEqual([1, 2, 3, 4, 5].map((n) => `求人由来の質問 ${n}`));
+      .toEqual([1, 2, 3, 4].map((n) => `求人由来の質問 ${n}`));
   });
 
   it("生成に失敗してもバンク抽選へ落として面接を開始できる", async () => {
@@ -380,7 +406,7 @@ describe("StartInterviewUseCase", () => {
     });
 
     expect(result.questionsGeneratedFromJobPosting).toBe(false);
-    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
     expect(
       repository.createSessionInput?.selectedQuestions.every(
         (q) => q.source === MainQuestionSource.BANK,

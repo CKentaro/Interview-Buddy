@@ -5,7 +5,7 @@ import type { MainQuestionGenerationContext } from "@/domain/interview/ports/IMa
 /**
  * 求人由来の本質問生成のプロンプト定義。
  *
- * NOTE: 5 問を 1 回の呼び出しでまとめて生成する。軸ごとに 1 問ずつ呼ぶと、
+ * NOTE: 計画された全問を 1 回の呼び出しでまとめて生成する。軸ごとに 1 問ずつ呼ぶと、
  * 同じ軸を 2 問出す再現性の枠で切り口が重複してしまい、それを防ぐ指示が
  * 効かなくなる。
  * 軸ラベル・説明は {@link EVALUATION_AXIS_METADATA}（単一の真実源）を参照する。

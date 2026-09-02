@@ -1,4 +1,5 @@
 import type { Question } from "./Question.entity";
+import type { InterviewLength } from "./InterviewLength.vo";
 import { SessionStatus } from "./SessionStatus.vo";
 
 /**
@@ -18,6 +19,8 @@ export type InterviewSession = {
   status: SessionStatus;
   /** AI 音声読み上げを有効にして開始したセッションか。 */
   voiceEnabled: boolean;
+  /** 固定質問構成を決める面接の長さ。 */
+  interviewLength: InterviewLength;
   companyName: string | null;
   industryMajor: string | null;
   industryMinor: string | null;
