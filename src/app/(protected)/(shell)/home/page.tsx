@@ -82,6 +82,9 @@ export default function HomePage() {
           question: resumed.currentQuestion,
           questionNumber: resumed.questionNumber,
           interviewerType: resumed.interviewerType ?? undefined,
+          // 再開した質問は読み上げない（pendingSpeech を立てない）。
+          // 再開のたびに TTS を呼べてしまうのを防ぐため、読み上げは次の質問から。
+          pendingSpeech: false,
         }),
       );
       router.push(`/interview/${sessionId}/live`);

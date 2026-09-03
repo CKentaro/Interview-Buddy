@@ -312,6 +312,8 @@ export default function SetupPage() {
         // 生成を要求したのに失敗してバンク出題に落ちた場合のみ、ライブ画面で通知する。
         questionsFellBackToBank:
           canGenerateQuestions && useGeneratedQuestions && !session.questionsGeneratedFromJobPosting,
+        // 開始直後の 1 問目だけは未読み上げ。ライブ画面が読み上げる際にこのフラグを落とす。
+        pendingSpeech: session.voiceEnabled,
       }));
       router.push(`/interview/${session.sessionId}/live`);
     } catch (e) {

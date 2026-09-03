@@ -45,6 +45,8 @@ type StoredSession = {
   voiceLimited?: boolean;
   /** 求人由来の質問生成を要求したが失敗し、質問バンクの出題に切り替わったか。 */
   questionsFellBackToBank?: boolean;
+  /** この質問がまだ一度も読み上げられていないか。読み上げの直前に落とす（下記 consumePendingSpeech）。 */
+  pendingSpeech?: boolean;
 };
 
 /* ── Gemini TTS ── */
@@ -162,6 +164,28 @@ async function speakQuestion(
   setSpeaking(true);
   if (buf) await playAudioBuffer(buf, () => setSpeaking(false));
   else speakWebSpeech(fallbackText, () => setSpeaking(false));
+}
+
+/* 「まだ読み上げていない質問」だけを読み上げるためのキー。
+   sessionStorage の pendingSpeech は要求と同時に落とすため、リロードで再合成されることはないが、
+   StrictMode の mount→cleanup→mount では同じドキュメント内で effect が再実行される。
+   モジュール変数はリロードで消えてこの再実行では残るので、開発時の読み上げだけを救える。 */
+let _pendingSpeechKey: string | null = null;
+
+/**
+ * この質問を読み上げてよいか判定し、読み上げるなら sessionStorage のフラグを即座に落とす。
+ * 再開（リロード・別端末からの復帰）で同じ質問の音声を作り直さないための入口。
+ */
+function consumePendingSpeech(stored: StoredSession): boolean {
+  const key = `${stored.sessionId}:${stored.question.id}`;
+  if (_pendingSpeechKey === key) return true;
+  if (!stored.pendingSpeech) return false;
+  _pendingSpeechKey = key;
+  sessionStorage.setItem(
+    "ib-session",
+    JSON.stringify({ ...stored, pendingSpeech: false }),
+  );
+  return true;
 }
 
 /* ── Speech Recognition (Web Speech API) ── */
@@ -350,7 +374,8 @@ export default function LivePage() {
 
   const toggleRecording = () => { if (recording) stopRecognition(); else startRecognition(); };
 
-  // sessionStorage から復元し、音声ありなら最初の質問の TTS を先に用意する。
+  // sessionStorage から復元する。音声ありでも読み上げるのは「まだ読み上げていない質問」だけで、
+  // 再開（リロード・中断からの復帰）で戻ってきた質問は合成し直さない。
   // sessionStorage が無い（別端末・直接遷移等）場合は、DB の回答状況を正として再開する。
   // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の prepare が
   // キャンセルされたまま再実行されず固まるのを避けるため、cleanup の cancelled フラグだけで制御する。
@@ -373,7 +398,9 @@ export default function LivePage() {
         stored.totalQuestionCount ?? DEFAULT_TOTAL_QUESTION_COUNT,
       );
 
-      if (!stored.voiceEnabled) {
+      // 再開した質問（既に読み上げ済み・再開で復元しただけの質問）は合成しない。
+      // リロードを繰り返すだけで TTS を無制限に呼べてしまうため。
+      if (!stored.voiceEnabled || !consumePendingSpeech(stored)) {
         setStatus("ready");
         /* eslint-enable react-hooks/set-state-in-effect */
         return;
@@ -406,8 +433,6 @@ export default function LivePage() {
         if (cancelled) return;
         if (resumed === null) return;
         const resumedType = resolveInterviewerType(resumed.interviewerType);
-        const speechText =
-          resumed.currentQuestion.speechText ?? resumed.currentQuestion.text;
         setQuestion(resumed.currentQuestion);
         setVoiceEnabled(resumed.voiceEnabled);
         setInterviewerType(resumedType);
@@ -422,20 +447,11 @@ export default function LivePage() {
             questionNumber: resumed.questionNumber,
             totalQuestionCount: resumed.totalQuestionCount,
             interviewerType: resumed.interviewerType ?? undefined,
+            // 再開した質問は読み上げ済みとして扱う（次の質問から読み上げを再開する）。
+            pendingSpeech: false,
           }),
         );
         setStatus("ready");
-
-        if (resumed.voiceEnabled) {
-          const buffer = await prepareTTS(
-            speechText,
-            sessionId,
-            resumedType,
-          );
-          if (!cancelled) {
-            await speakQuestion(buffer, speechText, setSpeaking);
-          }
-        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -521,6 +537,8 @@ export default function LivePage() {
         interviewerType,
         voiceLimited,
         questionsFellBackToBank,
+        // この場で読み上げるため、リロード後に読み上げ直さない。
+        pendingSpeech: false,
       }));
       window.scrollTo({ top: 0, behavior: "smooth" });
 
