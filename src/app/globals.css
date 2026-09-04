@@ -327,6 +327,7 @@ textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
   .ib-session-card, .ib-session-card .ib-session-chevron { transition: none; }
   .ib-session-card:hover .ib-session-chevron { transform: none; }
   .ib-face-open.ib-face-talking { animation: none; }
+  .ib-feedback-guide-backdrop, .ib-feedback-guide { animation: none; }
 }
 
 /* 一覧の読み込み中・空状態 */
@@ -448,6 +449,104 @@ textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
 
 /* 評価軸カード：本文をアイコンの右端に揃える字下げ */
 .ib-axis-comment { padding-left: 41px; }
+.ib-axis-help-button {
+  all: unset; box-sizing: border-box; cursor: pointer; flex: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-3);
+  transition: color .15s ease, background .15s ease;
+}
+.ib-axis-help-button:hover,
+.ib-axis-help-button[aria-expanded="true"] {
+  color: var(--color-text); background: var(--color-neutral-200);
+}
+.ib-axis-help-button:focus-visible {
+  outline: 2px solid var(--color-accent); outline-offset: 2px;
+}
+.ib-axis-help-text {
+  margin-left: 41px; padding: 12px 14px;
+  border-left: 2px solid var(--color-neutral-400);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--color-surface); color: var(--ink-2);
+}
+.ib-axis-help-text span {
+  display: block; margin-bottom: 4px;
+  color: var(--ink-3); font-size: 11px; font-weight: 500;
+}
+.ib-axis-help-text p { margin: 0; font-size: 12.5px; line-height: 1.8; }
+
+.ib-feedback-summary { position: relative; }
+.ib-feedback-about-row {
+  position: absolute; right: 0; bottom: 100%;
+  display: flex; justify-content: flex-end;
+}
+.ib-feedback-about-button { gap: 6px; padding: 4px 8px; font-size: 12px; }
+.ib-feedback-guide-backdrop {
+  position: fixed; inset: 0; z-index: 220;
+  display: grid; place-items: center; padding: 24px;
+  background: rgb(27 26 24 / 62%); backdrop-filter: blur(2px);
+  animation: ib-fade .18s ease both;
+}
+.ib-feedback-guide {
+  width: min(720px, 100%); max-height: calc(100dvh - 48px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
+  padding: 28px; border: 1px solid var(--color-divider); border-radius: var(--radius-lg);
+  background: var(--color-panel); box-shadow: var(--shadow-overlay);
+  animation: ib-feedback-guide-in .22s ease both;
+}
+.ib-feedback-guide-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ib-feedback-guide-topbar > span {
+  color: var(--ink-3); font-size: 10.5px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.ib-feedback-guide-close {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  width: 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-3); transition: color .15s ease, background .15s ease;
+}
+.ib-feedback-guide-close:hover { color: var(--color-text); background: var(--color-neutral-200); }
+.ib-feedback-guide-close:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.ib-feedback-guide-heading { display: flex; align-items: flex-start; gap: 12px; }
+.ib-feedback-guide-icon {
+  width: 40px; height: 40px; flex: none; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-neutral-200); color: var(--color-text);
+}
+.ib-feedback-guide-heading h2 { margin: 0 0 5px; font-size: 22px; }
+.ib-feedback-guide-heading p,
+.ib-feedback-guide-lead,
+.ib-feedback-guide-note { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.8; }
+.ib-feedback-guide-lead { padding-bottom: 2px; font-size: 13.5px; }
+.ib-feedback-guide-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.ib-feedback-guide-step {
+  min-width: 0; padding: 14px;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.ib-feedback-guide-step > span {
+  display: block; margin-bottom: 8px;
+  color: var(--ink-3); font-size: 10px; font-weight: 500; letter-spacing: .08em;
+}
+.ib-feedback-guide-step h3 { margin: 0 0 5px; font-size: 13px; font-weight: 500; }
+.ib-feedback-guide-step p { margin: 0; color: var(--ink-2); font-size: 11.5px; line-height: 1.7; }
+.ib-feedback-guide-features {
+  padding: 14px 16px; border-left: 3px solid var(--color-neutral-500);
+  background: var(--color-neutral-100);
+}
+.ib-feedback-guide-features h3 { margin: 0 0 7px; font-size: 12.5px; font-weight: 500; }
+.ib-feedback-guide-features ul {
+  margin: 0; padding-left: 19px; color: var(--ink-2); font-size: 12px; line-height: 1.75;
+}
+.ib-feedback-guide-note {
+  padding: 11px 13px; border-radius: var(--radius-sm); background: var(--color-surface);
+  color: var(--ink-3); font-size: 12px;
+}
+.ib-feedback-guide-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-top: 2px;
+}
+.ib-feedback-guide-actions > span { color: var(--ink-3); font-size: 11.5px; line-height: 1.6; }
 
 /* ════════════════════════════════════════════════════════════════════════
    Live interview — 画面の高さに収める 1 画面レイアウト。
@@ -535,6 +634,7 @@ textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
 @keyframes ib-fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes ib-pop { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes ib-feedback-guide-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes ib-breathe { 0%,100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
 @keyframes ib-breathe-ring { 0%,100% { transform: scale(1); opacity: .35; } 50% { transform: scale(1.18); opacity: 0; } }
 @keyframes ib-rec-pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
@@ -643,6 +743,14 @@ textarea.input { min-height: 90px; resize: vertical; line-height: 1.85; }
   .ib-setup-card { padding: 20px; }
   /* 評価軸カード：狭い画面ではアイコンぶんの字下げをやめ、本文に幅を使う */
   .ib-axis-comment { padding-left: 0; }
+  .ib-axis-help-text { margin-left: 0; }
+  .ib-feedback-guide-backdrop { align-items: end; padding: 12px; }
+  .ib-feedback-guide { max-height: calc(100dvh - 24px); padding: 20px; gap: 16px; }
+  .ib-feedback-guide-steps { grid-template-columns: 1fr; gap: 8px; }
+  .ib-feedback-guide-step { display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
+  .ib-feedback-guide-step > span { margin: 2px 0 0; }
+  .ib-feedback-guide-actions { align-items: stretch; flex-direction: column; }
+  .ib-feedback-guide-actions .btn { justify-content: center; }
 
   /* 横並びの行を縦積みに。ボタンやタグが引き伸ばされないよう左寄せで畳む。 */
   .ib-split { flex-direction: column; align-items: flex-start; gap: 12px; }
