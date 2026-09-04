@@ -16,6 +16,8 @@
     "db:down": "docker compose --env-file .env.local down",
     "db:reset": "docker compose --env-file .env.local down -v && docker compose --env-file .env.local up -d",
     "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "companies:fetch": "node scripts/companies/fetchEdinetCodeList.mts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },

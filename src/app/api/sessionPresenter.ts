@@ -51,6 +51,7 @@ export function toSessionListItem(s: SessionSummary): SessionListItemResponse {
     jobMinor: s.jobMinor,
     selectionStage: s.selectionStage,
     interviewerType: s.interviewerType,
+    companyId: s.companyId,
     questionCount: s.questionCount,
     hasFeedback: s.hasFeedback,
   };

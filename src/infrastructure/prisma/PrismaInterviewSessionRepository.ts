@@ -145,6 +145,7 @@ export class PrismaInterviewSessionRepository
         data: {
           userId: input.userId,
           companyName: input.companyName,
+          companyId: input.companyId,
           industryMajor: input.industryMajor,
           industryMinor: input.industryMinor,
           jobMajor: input.jobMajor,
@@ -264,6 +265,7 @@ export class PrismaInterviewSessionRepository
         jobMinor: true,
         selectionStage: true,
         interviewerType: true,
+        companyId: true,
         _count: { select: { questions: true } },
         feedback: { select: { id: true } },
       },
@@ -280,6 +282,7 @@ export class PrismaInterviewSessionRepository
       jobMinor: row.jobMinor,
       selectionStage: row.selectionStage,
       interviewerType: row.interviewerType,
+      companyId: row.companyId,
       questionCount: row._count.questions,
       hasFeedback: row.feedback !== null,
     }));
@@ -313,6 +316,7 @@ export class PrismaInterviewSessionRepository
       jobMinor: row.jobMinor,
       selectionStage: row.selectionStage,
       interviewerType: row.interviewerType,
+      companyId: row.companyId,
       interviewLength: INTERVIEW_LENGTH_TO_DOMAIN[row.interviewLength],
       voiceEnabled: row.voiceEnabled,
       questions: row.questions.map((q) => ({

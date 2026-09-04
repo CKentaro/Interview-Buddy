@@ -14,6 +14,8 @@ export type SessionListItemResponse = {
   jobMinor: string | null;
   selectionStage: string | null;
   interviewerType: string | null;
+  /** 企業マスタと紐づいていれば ID。履歴を企業ごとにまとめるのに使う。 */
+  companyId: string | null;
   questionCount: number;
   hasFeedback: boolean;
 };
@@ -78,6 +80,8 @@ export type SessionDetailResponse = {
   jobMinor: string | null;
   selectionStage: string | null;
   interviewerType: string | null;
+  /** 企業マスタと紐づいていれば ID。自由入力の企業では null。 */
+  companyId: string | null;
   /** 出題構成（面接の長さ）。「同じ設定でもう一度」の復元に使う。 */
   interviewLength: InterviewLength;
   voiceEnabled: boolean;
@@ -86,6 +90,21 @@ export type SessionDetailResponse = {
   // フィードバック生成は非同期のため、完了前は generating / failed を返す（GET /sessions/[id] は
   // このリソースを 1 本で返し、完了待ちのポーリングだけ軽量な GET /sessions/[id]/feedback を使う）。
   feedback: FeedbackResponse;
+};
+
+// ─── Company ─────────────────────────────────────────────────
+/** 企業名の候補 1 件。設定画面の入力補助と履歴のグループ化に使う。 */
+export type CompanyResponse = {
+  id: string;
+  name: string;
+  /** 4 桁の証券コード。非上場なら null。同名企業の見分けに使う。 */
+  securitiesCode: string | null;
+  isListed: boolean;
+  industryLabel: string | null;
+};
+
+export type CompanySearchResponse = {
+  companies: CompanyResponse[];
 };
 
 // ─── User me ─────────────────────────────────────────────────
@@ -167,6 +186,11 @@ export type AnalyzeJobPostingResponse =
       businessSummary: string | null;
       jobSummary: string | null;
       keyPoints: string[];
+      /**
+       * 企業名が企業マスタと一致した場合の企業。一致しなければ null で、
+       * その場合は企業名の文字列だけがフォームに入る（練習は問題なく開始できる）。
+       */
+      company: { id: string; name: string } | null;
     };
 
 // ─── Session create ───────────────────────────────────────────

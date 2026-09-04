@@ -12,6 +12,7 @@ import {
 import { JobPostingFetchError } from "@/domain/interview/ports/IJobPostingFetcher";
 import { GeminiJobPostingExtractor } from "@/infrastructure/ai/GeminiJobPostingExtractor";
 import { HttpJobPostingFetcher } from "@/infrastructure/jobPosting/HttpJobPostingFetcher";
+import { PrismaCompanyRepository } from "@/infrastructure/prisma/PrismaCompanyRepository";
 import { requireUser } from "@/lib/auth-guard";
 
 /** URL の最大長。極端に長い入力を解析にかけない。 */
@@ -54,6 +55,7 @@ export async function POST(request: Request): Promise<Response> {
     const useCase = new AnalyzeJobPostingUseCase(
       new HttpJobPostingFetcher(),
       new GeminiJobPostingExtractor(),
+      new PrismaCompanyRepository(),
     );
 
     let result;
@@ -85,6 +87,10 @@ export async function POST(request: Request): Promise<Response> {
       businessSummary: context.businessSummary,
       jobSummary: context.jobSummary,
       keyPoints: context.keyPoints,
+      company:
+        result.company === null
+          ? null
+          : { id: result.company.id, name: result.company.name },
     };
     return Response.json(response);
   } catch (error) {

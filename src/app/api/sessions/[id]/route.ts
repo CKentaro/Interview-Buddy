@@ -39,6 +39,7 @@ export async function GET(
       jobMinor: detail.jobMinor,
       selectionStage: detail.selectionStage,
       interviewerType: detail.interviewerType,
+      companyId: detail.companyId,
       interviewLength: detail.interviewLength,
       voiceEnabled: detail.voiceEnabled,
       questions: detail.questions.map(toQuestionWithAnswer),

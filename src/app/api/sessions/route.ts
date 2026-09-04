@@ -19,6 +19,7 @@ import {
 import { GeminiMainQuestionService } from "@/infrastructure/ai/GeminiMainQuestionService";
 import { GeminiOpeningSpeechService } from "@/infrastructure/ai/GeminiOpeningSpeechService";
 import { JsonQuestionBankProvider } from "@/infrastructure/questionBank/JsonQuestionBankProvider";
+import { PrismaCompanyRepository } from "@/infrastructure/prisma/PrismaCompanyRepository";
 import { PrismaInterviewSessionRepository } from "@/infrastructure/prisma/PrismaInterviewSessionRepository";
 import { requireUser } from "@/lib/auth-guard";
 
@@ -52,6 +53,8 @@ const jobPostingSchema = z
 const createSessionSchema = z
   .object({
     companyName: z.string().optional(),
+    // 企業マスタの ID。実在確認はユースケース側で行う（無効な ID は紐づけを外す）。
+    companyId: z.string().min(1).max(64).optional(),
     industryMajor: z.string().optional(),
     industryMinor: z.string().optional(),
     jobMajor: z.string().optional(),
@@ -116,6 +119,7 @@ export async function POST(request: Request): Promise<Response> {
       new PrismaInterviewSessionRepository(),
       new GeminiOpeningSpeechService(),
       new GeminiMainQuestionService(),
+      new PrismaCompanyRepository(),
     );
     const { jobPosting, ...rest } = parsed.data;
     const result = await useCase.execute({

@@ -7,6 +7,9 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noEmit": true,
+    // prisma/seed.mts は Node の型ストリップで直接実行するため、拡張子つきで
+    // ドメインの関数を import する（Node の ESM 解決には拡張子が要る）。
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

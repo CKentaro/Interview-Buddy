@@ -18,6 +18,7 @@ const summaries: SessionSummary[] = [
     jobMinor: null,
     selectionStage: null,
     interviewerType: null,
+    companyId: null,
     questionCount: 5,
     hasFeedback: true,
   },

@@ -1,3 +1,4 @@
+import type { ICompanyRepository } from "@/domain/company/ports/ICompanyRepository";
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
 import {
   DEFAULT_INTERVIEW_LENGTH,
@@ -28,6 +29,8 @@ import { jstDateString } from "@/lib/jstDate";
 export type StartInterviewInput = {
   userId: string;
   companyName?: string;
+  /** 企業マスタの ID。設定画面で候補から選ばれたときだけ入る。 */
+  companyId?: string;
   industryMajor?: string;
   industryMinor?: string;
   jobMajor?: string;
@@ -73,6 +76,7 @@ export class StartInterviewUseCase {
     private readonly interviewSessionRepository: IInterviewSessionRepository,
     private readonly openingSpeechService?: IOpeningSpeechService,
     private readonly mainQuestionGenerationService?: IMainQuestionGenerationService,
+    private readonly companyRepository?: ICompanyRepository,
   ) {}
 
   async execute(input: StartInterviewInput): Promise<StartInterviewResult> {
@@ -89,6 +93,10 @@ export class StartInterviewUseCase {
       (question) => question.source === MainQuestionSource.GENERATED,
     );
 
+    // 企業の紐づけは音声枠の消費より先に確定させる。実在しない companyId で
+    // セッション作成に失敗すると、枠だけ消費されて面接が始まらないため。
+    const companyId = await this.resolveCompanyId(input.companyId);
+
     // 音声ありは 1 日 1 セッションまで。枠を消費できなければ音声 OFF にフォールバックし、
     // 面接自体は開始させる（後段の TTS ゲートも voiceEnabled=true のセッションのみ許可）。
     const voiceEnabled = await this.resolveVoiceEnabled(input.userId, input.voiceEnabled);
@@ -97,6 +105,7 @@ export class StartInterviewUseCase {
       await this.interviewSessionRepository.createSession({
         userId: input.userId,
         companyName: input.companyName,
+        companyId,
         industryMajor: input.industryMajor,
         industryMinor: input.industryMinor,
         jobMajor: input.jobMajor,
@@ -200,6 +209,24 @@ export class StartInterviewUseCase {
       source.questions.filter((question) => question.type === QuestionType.MAIN),
       plan,
     );
+  }
+
+  /**
+   * 企業マスタとの紐づけに使う companyId を検証する。
+   *
+   * この値はクライアントから任意に送れるのに、そのまま渡すと外部キー違反で
+   * セッション作成ごと失敗する（利用者には 500 に見え、音声ありの場合は
+   * その日の枠だけが消費されて残る）。実在しない ID は落として「企業名の
+   * 文字列だけの練習」に倒す。マスタに無い企業でも練習できるという前提と同じ扱い。
+   */
+  private async resolveCompanyId(
+    companyId: string | undefined,
+  ): Promise<string | undefined> {
+    if (companyId === undefined || this.companyRepository === undefined) {
+      return companyId;
+    }
+    const company = await this.companyRepository.findById(companyId);
+    return company === null ? undefined : companyId;
   }
 
   /**

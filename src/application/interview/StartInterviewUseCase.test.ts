@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { Company } from "@/domain/company/model/Company.entity";
+import type { ICompanyRepository } from "@/domain/company/ports/ICompanyRepository";
 
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { Answer } from "@/domain/interview/model/Answer.entity";
@@ -498,6 +501,7 @@ function previousSessionDetail(
     jobMinor: null,
     selectionStage: null,
     interviewerType: null,
+    companyId: null,
     interviewLength: InterviewLength.STANDARD,
     voiceEnabled: false,
     questions: [
@@ -609,5 +613,88 @@ describe("StartInterviewUseCase（大問の引き継ぎ）", () => {
     expect(
       repository.createSessionInput?.selectedQuestions.map((q) => q.displayText),
     ).toEqual(MAIN_QUESTION_AXIS_PLAN.map((entry) => `前回の大問 ${entry.displayOrder}`));
+  });
+});
+
+describe("StartInterviewUseCase（企業マスタの紐づけ）", () => {
+  const company: Company = {
+    id: "company-1",
+    edinetCode: "E00001",
+    corporateNumber: null,
+    name: "テスト株式会社",
+    nameKana: null,
+    securitiesCode: null,
+    isListed: false,
+    industryLabel: null,
+    capitalMillionYen: null,
+  };
+
+  function createCompanyRepository(found: Company | null): ICompanyRepository {
+    return {
+      searchByNormalizedName: vi.fn(),
+      findByNormalizedName: vi.fn(),
+      findById: vi.fn().mockResolvedValue(found),
+    };
+  }
+
+  it("実在する companyId はそのまま保存する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(company),
+    );
+
+    await useCase.execute({ userId: "user-1", companyId: "company-1" });
+
+    expect(repository.createSessionInput?.companyId).toBe("company-1");
+  });
+
+  it("実在しない companyId は落として、企業名だけで面接を開始する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.voiceQuotaConsumable = true;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(null),
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      companyName: "テスト株式会社",
+      companyId: "does-not-exist",
+      voiceEnabled: true,
+    });
+
+    // 外部キー違反で落とさず、紐づけだけを外して面接は成立させる。
+    expect(repository.createSessionInput?.companyId).toBeUndefined();
+    expect(repository.createSessionInput?.companyName).toBe("テスト株式会社");
+  });
+
+  it("実在しない companyId でも音声枠を無駄に消費しない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(null),
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      companyId: "does-not-exist",
+      voiceEnabled: true,
+    });
+
+    // 枠は消費されるが、その分ちゃんと音声ありのセッションが作られている
+    // （検証で弾いてセッションだけ作られない、という状態にならないこと）。
+    expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(1);
+    expect(result.voiceEnabled).toBe(true);
+    expect(repository.createSessionInput?.voiceEnabled).toBe(true);
   });
 });
