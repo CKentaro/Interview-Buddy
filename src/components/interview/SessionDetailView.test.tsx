@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FeedbackResponse, SessionDetailResponse } from "@/app/api/types";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import { SessionDetailView } from "./SessionDetailView";
 
 const GENERATING_LABEL = "気づきをことばにまとめています…";
@@ -19,6 +20,8 @@ function detailWith(feedback: FeedbackResponse): SessionDetailResponse {
     jobMinor: null,
     selectionStage: "first",
     interviewerType: null,
+    interviewLength: InterviewLength.STANDARD,
+    voiceEnabled: false,
     questions: [],
     feedback,
   };

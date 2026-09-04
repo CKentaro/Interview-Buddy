@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { DependentSelectField } from "@/components/ui/DependentSelectField";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
-import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
+import {
+  InterviewLength,
+  resolveInterviewLength,
+} from "@/domain/interview/model/InterviewLength.vo";
+import { getInterviewLengthPolicy } from "@/domain/interview/model/interviewLengthPolicy";
 import {
   INDUSTRY_TAXONOMY,
   ROLE_TAXONOMY,
@@ -16,6 +20,7 @@ import type {
   AnalyzeJobPostingResponse,
   JobPostingFailureReason,
   JobPostingPageKindResponse,
+  SessionDetailResponse,
   SessionResponse,
   UserMeResponse,
   VoiceUsageResponse,
@@ -81,6 +86,43 @@ type ProfilePreference = {
   roleMajor: string; roleMinor: string;
 };
 
+/** ステップ s の入力が揃っているか。確認ステップは常に有効。 */
+function isStepComplete(form: FormData, s: number): boolean {
+  // 求人 URL の読み込みは任意。読み込めなくても手入力で先へ進める。
+  if (s === 0) return !!form.industryMajor && !!form.industryMinor;
+  if (s === 1) return !!form.companyName.trim() && !!form.roleMajor && !!form.roleMinor;
+  if (s === 2) return !!form.phase;
+  if (s === 3) return !!form.interviewerType;
+  return true;
+}
+
+/**
+ * 復元した設定から 1 項目も変わっていないか。
+ * 音声だけは本日の枠切れによる強制オフを「ユーザーによる変更」とみなさないよう、
+ * 両辺に同じ枠の判定をかけてから比べる。
+ */
+function isSameSettings(a: FormData, b: FormData, voiceExhausted: boolean): boolean {
+  return (
+    a.industryMajor === b.industryMajor &&
+    a.industryMinor === b.industryMinor &&
+    a.companyName.trim() === b.companyName.trim() &&
+    a.roleMajor === b.roleMajor &&
+    a.roleMinor === b.roleMinor &&
+    a.phase === b.phase &&
+    a.interviewerType === b.interviewerType &&
+    a.interviewLength === b.interviewLength &&
+    (a.voiceOn && !voiceExhausted) === (b.voiceOn && !voiceExhausted)
+  );
+}
+
+/** 最初に未入力が残っているステップ。すべて埋まっていれば確認ステップ。 */
+function firstIncompleteStep(form: FormData): number {
+  for (let s = 0; s < CONFIRM_STEP; s++) {
+    if (!isStepComplete(form, s)) return s;
+  }
+  return CONFIRM_STEP;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="field">
@@ -99,8 +141,11 @@ function Choice({ label, desc, active, onSelect }: { label: string; desc: string
   );
 }
 
-export default function SetupPage() {
+function SetupWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /** 「同じ設定でもう一度」の遷移元セッション。指定が無ければ通常の新規設定。 */
+  const sourceSessionId = searchParams.get("from");
   const { data: authSession } = useSession();
   const [step, setStep] = useState(0);
   const [showHint, setShowHint] = useState(false);
@@ -119,11 +164,60 @@ export default function SetupPage() {
    * true の間は、そのステップを終えると残りのステップを辿らず確認へ直接戻る。
    */
   const [editingFromConfirm, setEditingFromConfirm] = useState(false);
+  /** 遷移元セッションからの設定復元の状態。none は復元指定なし。 */
+  const [prefill, setPrefill] = useState<"none" | "loading" | "applied" | "failed">(
+    sourceSessionId === null ? "none" : "loading",
+  );
+  /** 遷移元セッションの大問の軸構成（表示順）。引き継げるかの判定に使う。 */
+  const [sourceMainAxes, setSourceMainAxes] = useState<string[] | null>(null);
+  /** 復元直後のフォーム。ここから 1 項目でも変えたら大問の引き継ぎをやめる。 */
+  const [restoredForm, setRestoredForm] = useState<FormData | null>(null);
   const [form, setForm] = useState<FormData>({
     industryMajor: "", industryMinor: "", companyName: "",
     roleMajor: "", roleMinor: "", phase: "", interviewerType: "", voiceOn: false,
     interviewLength: InterviewLength.STANDARD,
   });
+
+  /*
+   * 「同じ設定でもう一度」で渡された過去セッションの設定をフォームへ復元する。
+   * 復元できたら確認ステップまで飛ばす（項目が欠けている過去セッションのときだけ、
+   * その入力ステップから始める）。求人 URL 由来の質問生成は材料を保存していないため
+   * 引き継がず、質問はその設定であらためて用意する。
+   */
+  useEffect(() => {
+    if (sourceSessionId === null) return;
+    let cancelled = false;
+    fetch(`/api/sessions/${sourceSessionId}`)
+      .then((r) => (r.ok ? (r.json() as Promise<SessionDetailResponse>) : null))
+      .then((detail) => {
+        if (cancelled) return;
+        if (detail === null) { setPrefill("failed"); return; }
+        // 選択肢に無い値（マスタ改訂後の古いセッション等）は未設定として扱う。
+        const restored: FormData = {
+          industryMajor: detail.industryMajor ?? "",
+          industryMinor: detail.industryMinor ?? "",
+          companyName: detail.companyName ?? "",
+          roleMajor: detail.jobMajor ?? "",
+          roleMinor: detail.jobMinor ?? "",
+          phase: PHASES.find((p) => p.key === detail.selectionStage)?.key ?? "",
+          interviewerType: INTERVIEWERS.find((t) => t.key === detail.interviewerType)?.key ?? "",
+          voiceOn: detail.voiceEnabled,
+          interviewLength: resolveInterviewLength(detail.interviewLength),
+        };
+        setSourceMainAxes(
+          detail.questions
+            .filter((question) => question.type === "MAIN")
+            .sort((a, b) => a.displayOrder - b.displayOrder)
+            .map((question) => String(question.primaryAxis)),
+        );
+        setForm(restored);
+        setRestoredForm(restored);
+        setStep(firstIncompleteStep(restored));
+        setPrefill("applied");
+      })
+      .catch(() => { if (!cancelled) setPrefill("failed"); });
+    return () => { cancelled = true; };
+  }, [sourceSessionId]);
 
   // 本日の音声ありセッション残回数を取得する（取得失敗時は表示を出さないだけ）。
   useEffect(() => {
@@ -172,6 +266,25 @@ export default function SetupPage() {
   }, [authSession?.user?.id]);
 
   const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
+
+  /*
+   * 大問を前回と同じ質問で出題するか。
+   * 前提は「復元した設定のまま始める」こと。確認画面の編集で 1 項目でも変えたら、
+   * その設定に合った質問をあらためて用意する（前回と揃える意味がなくなるため）。
+   * 加えて、軸の並びが今回の出題計画と一致することも要る（サーバー側の
+   * StartInterviewUseCase と同じ判定。軸構成の改訂前に作られた古いセッション対策）。
+   */
+  const reusesMainQuestions = (() => {
+    if (sourceMainAxes === null || restoredForm === null) return false;
+    if (!isSameSettings(form, restoredForm, voiceExhausted)) return false;
+    const plan = getInterviewLengthPolicy(form.interviewLength).mainQuestionPlan;
+    return (
+      plan.length === sourceMainAxes.length &&
+      plan.every((entry, i) => String(entry.axis) === sourceMainAxes[i])
+    );
+  })();
+  /* 実際に音声で開始するか。本日の枠が尽きていれば、設定の復元やトグルの値によらず必ず false。 */
+  const voiceOn = form.voiceOn && !voiceExhausted;
   const analyzed = analysis?.status === "analyzed" ? analysis : null;
   /** 求人由来の質問生成を選べるか（解析済みかつ材料が十分なときだけ）。 */
   const canGenerateQuestions = analyzed?.usableAsContext === true;
@@ -239,14 +352,7 @@ export default function SetupPage() {
 
   const patch = (p: Partial<FormData>) => { setForm((f) => ({ ...f, ...p })); setShowHint(false); };
 
-  const isStepValid = (s: number): boolean => {
-    // 求人 URL の読み込みは任意。読み込めなくても手入力で先へ進める。
-    if (s === 0) return !!form.industryMajor && !!form.industryMinor;
-    if (s === 1) return !!form.companyName.trim() && !!form.roleMajor && !!form.roleMinor;
-    if (s === 2) return !!form.phase;
-    if (s === 3) return !!form.interviewerType;
-    return true;
-  };
+  const isStepValid = (s: number): boolean => isStepComplete(form, s);
 
   const goBack = () => { setStep((s) => Math.max(0, s - 1)); setShowHint(false); };
   const goNext = () => {
@@ -290,8 +396,13 @@ export default function SetupPage() {
           jobMinor: form.roleMinor,
           selectionStage: form.phase,
           interviewerType: form.interviewerType,
-          voiceEnabled: form.voiceOn,
+          voiceEnabled: voiceOn,
           interviewLength: form.interviewLength,
+          // 設定を変えずに始めるときだけ、大問を前回と同じ質問にする
+          // （所有チェックと軸構成の最終判定はサーバー側）。
+          ...(reusesMainQuestions && sourceSessionId !== null
+            ? { reuseQuestionsFromSessionId: sourceSessionId }
+            : {}),
           ...(analyzed ? { jobPosting: analyzed } : {}),
           generateQuestionsFromJobPosting: canGenerateQuestions && useGeneratedQuestions,
         }),
@@ -308,7 +419,7 @@ export default function SetupPage() {
         interviewLength: session.interviewLength,
         interviewerType: form.interviewerType,
         // 音声を要求したのに枠超過で無効化された場合のみ、ライブ画面で通知する。
-        voiceLimited: form.voiceOn && !session.voiceEnabled,
+        voiceLimited: voiceOn && !session.voiceEnabled,
         // 生成を要求したのに失敗してバンク出題に落ちた場合のみ、ライブ画面で通知する。
         questionsFellBackToBank:
           canGenerateQuestions && useGeneratedQuestions && !session.questionsGeneratedFromJobPosting,
@@ -333,8 +444,19 @@ export default function SetupPage() {
     { label: "志望企業・職種", value: `${form.companyName || "未設定"}${form.roleMajor ? `　・　${form.roleMajor} ／ ${form.roleMinor}` : ""}`, goto: 1 },
     { label: "選考フェーズ", value: phaseLabel, goto: 2 },
     { label: "面接の長さ", value: lengthLabel, goto: 3 },
-    { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${form.voiceOn ? "あり" : "なし"}`, goto: 3 },
+    { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${voiceOn ? "あり" : "なし"}`, goto: 3 },
   ];
+
+  if (prefill === "loading") {
+    return (
+      <main className="ib-setup-main">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--ink-3)" }}>
+          <span style={{ width: 15, height: 15, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+          <span>前回の設定を読み込んでいます…</span>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="ib-setup-main">
@@ -367,6 +489,15 @@ export default function SetupPage() {
               ))}
             </div>
           </div>
+
+          {prefill === "failed" && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>
+                前回の設定を読み込めませんでした。お手数ですが、この画面で設定してください。
+              </div>
+            </div>
+          )}
 
           {/* 求人 URL からの自動入力（任意）と、その下の手入力は別のカードに分ける。 */}
           {step === 0 && (
@@ -575,12 +706,12 @@ export default function SetupPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { if (!voiceExhausted) patch({ voiceOn: !form.voiceOn }); }}
-                    aria-pressed={form.voiceOn}
+                    onClick={() => { if (!voiceExhausted) patch({ voiceOn: !voiceOn }); }}
+                    aria-pressed={voiceOn}
                     disabled={voiceExhausted}
-                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: form.voiceOn ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: voiceOn ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
                   >
-                    <span style={{ position: "absolute", top: 2, left: form.voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
+                    <span style={{ position: "absolute", top: 2, left: voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
                   </button>
                 </div>
                 {/* 求人 URL を読み込めたときだけ、出題方法の選択肢を出す。 */}
@@ -632,9 +763,6 @@ export default function SetupPage() {
                     </div>
                   ))}
                 </div>
-                <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12.5, lineHeight: 1.7, color: "var(--ink-2)" }}>
-                  面接はいつでも途中で中断できます。送信済みの回答は保存され、HOME画面から後で再開できます。
-                </div>
                 {startError && (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
                     <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
@@ -679,5 +807,17 @@ export default function SetupPage() {
           )}
         </div>
     </main>
+  );
+}
+
+/**
+ * 「同じ設定でもう一度」からの遷移で useSearchParams を読むため、
+ * ページ本体を Suspense 境界の内側に置く。
+ */
+export default function SetupPage() {
+  return (
+    <Suspense fallback={<main className="ib-setup-main" />}>
+      <SetupWizard />
+    </Suspense>
   );
 }

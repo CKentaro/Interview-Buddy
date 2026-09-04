@@ -313,6 +313,8 @@ export class PrismaInterviewSessionRepository
       jobMinor: row.jobMinor,
       selectionStage: row.selectionStage,
       interviewerType: row.interviewerType,
+      interviewLength: INTERVIEW_LENGTH_TO_DOMAIN[row.interviewLength],
+      voiceEnabled: row.voiceEnabled,
       questions: row.questions.map((q) => ({
         id: q.id,
         type: TYPE_TO_DOMAIN[q.type],

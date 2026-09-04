@@ -78,6 +78,9 @@ export type SessionDetailResponse = {
   jobMinor: string | null;
   selectionStage: string | null;
   interviewerType: string | null;
+  /** 出題構成（面接の長さ）。「同じ設定でもう一度」の復元に使う。 */
+  interviewLength: InterviewLength;
+  voiceEnabled: boolean;
   questions: QuestionWithAnswer[];
   // 面接終了後フィードバック画面／履歴詳細で QA と一緒に表示する評価を status 付きで埋め込む。
   // フィードバック生成は非同期のため、完了前は generating / failed を返す（GET /sessions/[id] は

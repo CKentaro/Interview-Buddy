@@ -81,6 +81,7 @@ export default function HomePage() {
           voiceEnabled: resumed.voiceEnabled,
           question: resumed.currentQuestion,
           questionNumber: resumed.questionNumber,
+          totalQuestionCount: resumed.totalQuestionCount,
           interviewerType: resumed.interviewerType ?? undefined,
           // 再開した質問は読み上げない（pendingSpeech を立てない）。
           // 再開のたびに TTS を呼べてしまうのを防ぐため、読み上げは次の質問から。

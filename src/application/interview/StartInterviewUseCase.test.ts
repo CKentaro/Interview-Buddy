@@ -11,6 +11,7 @@ import type {
   CreateSessionInput,
   CreateSessionResult,
   IInterviewSessionRepository,
+  InterviewSessionDetail,
   QuestionAnswerPair,
   SaveAnswerAndCreateFollowUpQuestionResult,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
@@ -166,8 +167,16 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
     throw new Error("Not implemented");
   }
 
-  async findDetailById(): Promise<null> {
-    throw new Error("Not implemented");
+  /** findDetailById が返す過去セッション（大問の引き継ぎ元）。既定は「無し」。 */
+  detail: InterviewSessionDetail | null = null;
+  findDetailByIdCalls: Array<{ userId: string; sessionId: string }> = [];
+
+  async findDetailById(
+    userId: string,
+    sessionId: string,
+  ): Promise<InterviewSessionDetail | null> {
+    this.findDetailByIdCalls.push({ userId, sessionId });
+    return this.detail;
   }
 
   async findCompletedByUser(): Promise<never[]> {
@@ -471,5 +480,134 @@ describe("StartInterviewUseCase", () => {
 
     expect(result.questionsGeneratedFromJobPosting).toBe(false);
     expect(generationService.receivedContext).toBeNull();
+  });
+});
+
+/** 前回セッションの詳細（大問だけが計画どおりに並んだもの）。 */
+function previousSessionDetail(
+  plan: readonly { displayOrder: number; axis: EvaluationAxis }[],
+): InterviewSessionDetail {
+  return {
+    id: "previous-session",
+    startedAt: new Date("2026-07-01T00:00:00.000Z"),
+    endedAt: new Date("2026-07-01T00:30:00.000Z"),
+    companyName: "テスト社",
+    industryMajor: null,
+    industryMinor: null,
+    jobMajor: null,
+    jobMinor: null,
+    selectionStage: null,
+    interviewerType: null,
+    interviewLength: InterviewLength.STANDARD,
+    voiceEnabled: false,
+    questions: [
+      ...plan.map((entry) => ({
+        id: `main-${entry.displayOrder}`,
+        type: QuestionType.MAIN,
+        content: `前回の大問 ${entry.displayOrder}`,
+        displayOrder: entry.displayOrder,
+        primaryAxis: entry.axis,
+        parentQuestionId: null,
+        answer: { id: `a-${entry.displayOrder}`, content: "回答" },
+      })),
+      // 深掘りは引き継がない（回答次第で変わるため）。混ざっていても無視されること。
+      {
+        id: "follow-1",
+        type: QuestionType.FOLLOW_UP,
+        content: "前回の深掘り",
+        displayOrder: plan.length + 1,
+        primaryAxis: plan[0]!.axis,
+        parentQuestionId: "main-1",
+        answer: null,
+      },
+    ],
+  };
+}
+
+describe("StartInterviewUseCase（大問の引き継ぎ）", () => {
+  it("前回セッションを指定すると、大問は前回と同じ質問文で出題する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    // 所有チェック込みの取得を、本人の ID で呼んでいること。
+    expect(repository.findDetailByIdCalls).toEqual([
+      { userId: "user-1", sessionId: "previous-session" },
+    ]);
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected.map((question) => question.displayText)).toEqual(
+      MAIN_QUESTION_AXIS_PLAN.map((entry) => `前回の大問 ${entry.displayOrder}`),
+    );
+    expect(selected.every((question) => question.source === MainQuestionSource.REUSED)).toBe(true);
+  });
+
+  it("面接の長さを変えて軸構成が変われば、引き継がずバンク抽選に落とす", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      interviewLength: InterviewLength.LONG,
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected).toHaveLength(6);
+    expect(selected.every((question) => question.source === MainQuestionSource.BANK)).toBe(true);
+  });
+
+  it("他人・削除済みのセッション（詳細が取得できない）なら引き継がない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = null;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      reuseQuestionsFromSessionId: "someone-elses-session",
+    });
+
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected).toHaveLength(4);
+    expect(selected.every((question) => question.source === MainQuestionSource.BANK)).toBe(true);
+  });
+
+  it("引き継ぎ指定があるときは求人由来の生成より引き継ぎを優先する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+    expect(
+      repository.createSessionInput?.selectedQuestions.map((q) => q.displayText),
+    ).toEqual(MAIN_QUESTION_AXIS_PLAN.map((entry) => `前回の大問 ${entry.displayOrder}`));
   });
 });

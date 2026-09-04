@@ -4,6 +4,7 @@ import type { Feedback } from "@/domain/feedback/model/Feedback.entity";
 import type { IFeedbackRepository } from "@/domain/feedback/ports/IFeedbackRepository";
 import { FEEDBACK_TIMEOUT_MS } from "@/domain/feedback/services/determineFeedbackStatus";
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import type {
   IInterviewSessionRepository,
@@ -26,6 +27,8 @@ function detail(overrides: Partial<InterviewSessionDetail> = {}): InterviewSessi
     jobMinor: null,
     selectionStage: null,
     interviewerType: null,
+    interviewLength: InterviewLength.STANDARD,
+    voiceEnabled: false,
     questions: [
       {
         id: "q-1",

@@ -62,6 +62,9 @@ const createSessionSchema = z
     interviewLength: z.enum(INTERVIEW_LENGTH_VALUES).optional(),
     jobPosting: jobPostingSchema.optional(),
     generateQuestionsFromJobPosting: z.boolean().optional(),
+    // 「同じ設定でもう一度」で大問を引き継ぐ元セッション。所有チェックと軸構成の
+    // 一致確認はユースケース側で行うため、ここでは長さだけ縛る（cuid 相当）。
+    reuseQuestionsFromSessionId: z.string().min(1).max(64).optional(),
   })
   .strict();
 

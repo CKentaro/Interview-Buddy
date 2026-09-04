@@ -6,6 +6,8 @@ export enum MainQuestionSource {
   BANK = "BANK",
   /** 求人内容をもとに LLM が生成。 */
   GENERATED = "GENERATED",
+  /** 過去セッションの本質問をそのまま引き継いだ（「同じ設定でもう一度」）。 */
+  REUSED = "REUSED",
 }
 
 /**

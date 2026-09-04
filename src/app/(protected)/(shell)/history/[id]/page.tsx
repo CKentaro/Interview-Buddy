@@ -16,7 +16,8 @@ export default async function HistoryDetailPage({
 
       <section className="ib-section ib-actions" style={{ paddingTop: 2 }}>
         <Link href="/history" className="btn btn-secondary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>履歴一覧に戻る</Link>
-        <Link href="/interview/setup" className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>同じ設定でもう一度挑戦する</Link>
+        {/* from を渡すと、設定画面がこのセッションの設定を復元して確認ステップから始まる。 */}
+        <Link href={`/interview/setup?from=${id}`} className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>同じ設定でもう一度挑戦する</Link>
       </section>
     </main>
   );

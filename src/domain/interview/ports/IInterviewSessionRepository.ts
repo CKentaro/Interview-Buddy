@@ -47,6 +47,9 @@ export type InterviewSessionDetail = {
   jobMinor: string | null;
   selectionStage: string | null;
   interviewerType: string | null;
+  /** 出題構成（面接の長さ）。同じ設定でやり直す導線の復元に使う。 */
+  interviewLength: InterviewLength;
+  voiceEnabled: boolean;
   /** displayOrder 昇順。MAIN / FOLLOW_UP を含む。 */
   questions: SessionQuestionWithAnswer[];
 };
