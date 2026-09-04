@@ -71,8 +71,14 @@ export function LcPanelLeft({ size = 18 }: { size?: number }) {
 export function LcMenu({ size = 20 }: { size?: number }) {
   return <Lucide size={size}><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></Lucide>;
 }
+export function LcLink({ size = 14 }: { size?: number }) {
+  return <Lucide size={size}><path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 0 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" /></Lucide>;
+}
 export function LcClose({ size = 20 }: { size?: number }) {
   return <Lucide size={size}><line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" /></Lucide>;
+}
+export function LcHelpCircle({ size = 18 }: { size?: number }) {
+  return <Lucide size={size}><circle cx="12" cy="12" r="9" /><path d="M9.7 9a2.4 2.4 0 1 1 3.5 2.1c-.8.4-1.2.9-1.2 1.9" /><line x1="12" y1="16.5" x2="12" y2="16.51" /></Lucide>;
 }
 /* Google の G マークをここに置いてはいけない。ブランディング ガイドラインが自作・改変・
    単色化を禁じているため、公式アセットから切り出した public/google-g.svg を

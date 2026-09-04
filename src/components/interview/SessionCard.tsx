@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { CompanyLinkBadge } from "@/components/company/CompanyLinkBadge";
 import { interviewerTypeLabel } from "@/domain/interview/model/InterviewerType.vo";
 import type { SessionListItemResponse } from "@/app/api/types";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
 function stageLabel(stage: string | null): string {
   return { first: "一次面接", second: "二次面接", final: "最終面接" }[stage ?? ""] ?? "面接練習";
@@ -49,13 +49,16 @@ export function SessionCard({ s, compact = false }: { s: SessionListItemResponse
     <Link href={`/history/${s.id}`} className="ib-session-card">
       <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{s.companyName ?? "（企業名未入力）"}</span>
-          <span style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{roleLabel(s)}</span>
+          <span style={{ fontSize: 14.5, fontWeight: 500, letterSpacing: "-0.01em" }}>{s.companyName ?? "（企業名未入力）"}</span>
+          {/* 企業ごとの表示でまとまる練習かどうかを、一覧の時点で分かるようにする。
+              ホームの直近一覧（compact）では情報を絞るため出さない。 */}
+          {!compact && s.companyId !== null && <CompanyLinkBadge size={12} />}
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{roleLabel(s)}</span>
         </div>
-        <div style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>{metaLine(s, compact)}</div>
+        <div className="num" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{metaLine(s, compact)}</div>
       </div>
       <div className="ib-session-meta">
-        <div className="ib-session-stats" style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>
+        <div className="ib-session-stats" style={{ fontSize: 12, color: "var(--ink-3)" }}>
           <div>{durationLabel(s.startedAt, s.endedAt)}</div>
           <div>質問 {s.questionCount}問</div>
         </div>
@@ -64,7 +67,7 @@ export function SessionCard({ s, compact = false }: { s: SessionListItemResponse
             {s.hasFeedback ? "フィードバックあり" : "生成中"}
           </span>
         )}
-        <svg className="ib-session-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", color: muted(40) }}>
+        <svg className="ib-session-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "none", color: "var(--ink-4)" }}>
           <path d="M9 18l6-6-6-6" />
         </svg>
       </div>

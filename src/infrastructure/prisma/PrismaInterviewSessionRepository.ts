@@ -1,5 +1,11 @@
 import type { Answer } from "@/domain/interview/model/Answer.entity";
 import type { InterviewSession } from "@/domain/interview/model/InterviewSession.entity";
+import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import type {
+  IInterviewSessionLifecycleRepository,
+  ResumableSessionSummary,
+  ResumeSessionState,
+} from "@/domain/interview/ports/IInterviewSessionLifecycleRepository";
 import type {
   CreateFollowUpQuestionInput,
   CreateSessionInput,
@@ -17,16 +23,28 @@ import type { Question } from "@/domain/interview/model/Question.entity";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
 import type {
   EvaluationAxis as PrismaEvaluationAxis,
+  InterviewLength as PrismaInterviewLength,
   QuestionType as PrismaQuestionType,
+  SessionStatus as PrismaSessionStatus,
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { AXIS_TO_DOMAIN, AXIS_TO_PRISMA } from "./evaluationAxisMapping";
+import {
+  INTERVIEW_LENGTH_TO_DOMAIN,
+  INTERVIEW_LENGTH_TO_PRISMA,
+} from "./interviewLengthMapping";
 
 // ── Prisma の QuestionType ⇔ ドメインの QuestionType（値は同一だが型を明示的に橋渡しする）──
 
 const TYPE_TO_DOMAIN: Record<PrismaQuestionType, QuestionType> = {
   MAIN: QuestionType.MAIN,
   FOLLOW_UP: QuestionType.FOLLOW_UP,
+};
+
+const STATUS_TO_DOMAIN: Record<PrismaSessionStatus, SessionStatus> = {
+  IN_PROGRESS: SessionStatus.IN_PROGRESS,
+  PAUSED: SessionStatus.PAUSED,
+  COMPLETED: SessionStatus.COMPLETED,
 };
 
 type PrismaQuestionRow = {
@@ -44,6 +62,9 @@ type PrismaInterviewSessionRow = {
   userId: string;
   startedAt: Date;
   endedAt: Date | null;
+  status: PrismaSessionStatus;
+  voiceEnabled: boolean;
+  interviewLength: PrismaInterviewLength;
   companyName: string | null;
   industryMajor: string | null;
   industryMinor: string | null;
@@ -74,6 +95,9 @@ function toDomainInterviewSession(
     userId: row.userId,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
+    status: STATUS_TO_DOMAIN[row.status],
+    voiceEnabled: row.voiceEnabled,
+    interviewLength: INTERVIEW_LENGTH_TO_DOMAIN[row.interviewLength],
     companyName: row.companyName,
     industryMajor: row.industryMajor,
     industryMinor: row.industryMinor,
@@ -113,7 +137,7 @@ async function mapDuplicateAnswer<T>(
  * ドメイン層が定義したインターフェースを Prisma で実装する（依存性逆転）。
  */
 export class PrismaInterviewSessionRepository
-  implements IInterviewSessionRepository
+  implements IInterviewSessionRepository, IInterviewSessionLifecycleRepository
 {
   async createSession(input: CreateSessionInput): Promise<CreateSessionResult> {
     return prisma.$transaction(async (tx) => {
@@ -121,6 +145,7 @@ export class PrismaInterviewSessionRepository
         data: {
           userId: input.userId,
           companyName: input.companyName,
+          companyId: input.companyId,
           industryMajor: input.industryMajor,
           industryMinor: input.industryMinor,
           jobMajor: input.jobMajor,
@@ -128,6 +153,7 @@ export class PrismaInterviewSessionRepository
           selectionStage: input.selectionStage,
           interviewerType: input.interviewerType,
           voiceEnabled: input.voiceEnabled ?? false,
+          interviewLength: INTERVIEW_LENGTH_TO_PRISMA[input.interviewLength],
         },
       });
 
@@ -222,7 +248,11 @@ export class PrismaInterviewSessionRepository
 
   async findCompletedByUser(userId: string): Promise<SessionSummary[]> {
     const rows = await prisma.interviewSession.findMany({
-      where: { userId, endedAt: { not: null } },
+      where: {
+        userId,
+        status: "COMPLETED",
+        endedAt: { not: null },
+      },
       orderBy: { startedAt: "desc" },
       select: {
         id: true,
@@ -235,6 +265,7 @@ export class PrismaInterviewSessionRepository
         jobMinor: true,
         selectionStage: true,
         interviewerType: true,
+        companyId: true,
         _count: { select: { questions: true } },
         feedback: { select: { id: true } },
       },
@@ -251,6 +282,7 @@ export class PrismaInterviewSessionRepository
       jobMinor: row.jobMinor,
       selectionStage: row.selectionStage,
       interviewerType: row.interviewerType,
+      companyId: row.companyId,
       questionCount: row._count.questions,
       hasFeedback: row.feedback !== null,
     }));
@@ -284,6 +316,9 @@ export class PrismaInterviewSessionRepository
       jobMinor: row.jobMinor,
       selectionStage: row.selectionStage,
       interviewerType: row.interviewerType,
+      companyId: row.companyId,
+      interviewLength: INTERVIEW_LENGTH_TO_DOMAIN[row.interviewLength],
+      voiceEnabled: row.voiceEnabled,
       questions: row.questions.map((q) => ({
         id: q.id,
         type: TYPE_TO_DOMAIN[q.type],
@@ -443,7 +478,7 @@ export class PrismaInterviewSessionRepository
 
         await tx.interviewSession.update({
           where: { id: input.sessionId },
-          data: { endedAt: new Date() },
+          data: { endedAt: new Date(), status: "COMPLETED" },
         });
 
         return row;
@@ -460,7 +495,108 @@ export class PrismaInterviewSessionRepository
   async completeSession(sessionId: string): Promise<void> {
     await prisma.interviewSession.update({
       where: { id: sessionId },
-      data: { endedAt: new Date() },
+      data: { endedAt: new Date(), status: "COMPLETED" },
     });
+  }
+
+  async pauseOwnedSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<SessionStatus | null> {
+    const updated = await prisma.interviewSession.updateMany({
+      where: { id: sessionId, userId, status: "IN_PROGRESS" },
+      data: { status: "PAUSED" },
+    });
+    if (updated.count === 1) {
+      return SessionStatus.PAUSED;
+    }
+
+    const row = await prisma.interviewSession.findFirst({
+      where: { id: sessionId, userId },
+      select: { status: true },
+    });
+    return row === null ? null : STATUS_TO_DOMAIN[row.status];
+  }
+
+  async resumeOwnedSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<ResumeSessionState | null> {
+    return prisma.$transaction(async (tx) => {
+      await tx.interviewSession.updateMany({
+        where: { id: sessionId, userId, status: "PAUSED" },
+        data: { status: "IN_PROGRESS" },
+      });
+
+      const row = await tx.interviewSession.findFirst({
+        where: { id: sessionId, userId },
+        include: {
+          questions: {
+            orderBy: { displayOrder: "asc" },
+            include: { answer: { select: { id: true, content: true } } },
+          },
+        },
+      });
+      if (row === null) {
+        return null;
+      }
+
+      return {
+        session: toDomainInterviewSession(row, row.questions.map(toDomainQuestion)),
+        questions: row.questions.map((question) => ({
+          id: question.id,
+          type: TYPE_TO_DOMAIN[question.type],
+          content: question.content,
+          displayOrder: question.displayOrder,
+          primaryAxis:
+            question.primaryAxis === null
+              ? null
+              : AXIS_TO_DOMAIN[question.primaryAxis],
+          parentQuestionId: question.parentQuestionId,
+          answer:
+            question.answer === null
+              ? null
+              : { id: question.answer.id, content: question.answer.content },
+        })),
+      };
+    });
+  }
+
+  async findPausedByUser(
+    userId: string,
+  ): Promise<ResumableSessionSummary[]> {
+    const rows = await prisma.interviewSession.findMany({
+      where: { userId, status: "PAUSED" },
+      orderBy: { startedAt: "desc" },
+      select: {
+        id: true,
+        startedAt: true,
+        companyName: true,
+        industryMajor: true,
+        industryMinor: true,
+        jobMajor: true,
+        jobMinor: true,
+        selectionStage: true,
+        interviewerType: true,
+        questions: {
+          select: { answer: { select: { id: true } } },
+        },
+      },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      startedAt: row.startedAt,
+      companyName: row.companyName,
+      industryMajor: row.industryMajor,
+      industryMinor: row.industryMinor,
+      jobMajor: row.jobMajor,
+      jobMinor: row.jobMinor,
+      selectionStage: row.selectionStage,
+      interviewerType: row.interviewerType,
+      answeredQuestionCount: row.questions.filter(
+        (question) => question.answer !== null,
+      ).length,
+    }));
   }
 }

@@ -1,11 +1,17 @@
-import type { BankQuestion, QuestionBank } from "../model/QuestionBank.vo";
+import type { BankAxis, BankQuestion, QuestionBank } from "../model/QuestionBank.vo";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
+import {
+  MAIN_QUESTION_AXIS_PLAN,
+  type MainQuestionPlanEntry,
+} from "../model/mainQuestionPlan";
 import type { SelectedQuestion } from "../model/SelectedQuestion.vo";
+import { MainQuestionSource } from "../model/SelectedQuestion.vo";
 
-/** セッションごとに出題する本質問（MainQuestion）の数。 */
-export const MAIN_QUESTION_COUNT = 5;
+export { MAIN_QUESTION_COUNT } from "../model/mainQuestionPlan";
 
 export type SelectMainQuestionsOptions = {
+  /** 長さ設定から解決した軸・表示順。既定は普通の 5 問。 */
+  plan?: readonly MainQuestionPlanEntry[];
   /**
    * 乱数源（0 以上 1 未満）。既定は Math.random。
    * テストで決定的な抽選を行えるよう注入可能にしている。
@@ -32,27 +38,6 @@ function fisherYates<T>(arr: readonly T[], random: () => number): T[] {
   return result;
 }
 
-function pickOne(questions: BankQuestion[], random: () => number): BankQuestion {
-  const picked = fisherYates(questions, random)[0];
-  if (!picked) {
-    throw new InsufficientQuestionBankError("Question pool is empty");
-  }
-  return picked;
-}
-
-function pickTwo(
-  questions: BankQuestion[],
-  random: () => number,
-): [BankQuestion, BankQuestion] {
-  if (questions.length < 2) {
-    throw new InsufficientQuestionBankError(
-      "Question pool has fewer than 2 questions",
-    );
-  }
-  const shuffled = fisherYates(questions, random);
-  return [shuffled[0]!, shuffled[1]!];
-}
-
 function toSelected(
   question: BankQuestion,
   axis: EvaluationAxis,
@@ -60,6 +45,7 @@ function toSelected(
 ): SelectedQuestion {
   return {
     bankId: question.id,
+    source: MainQuestionSource.BANK,
     displayText: question.displayText,
     axis,
     displayOrder,
@@ -67,30 +53,48 @@ function toSelected(
 }
 
 /**
- * 質問バンクから本質問 5 問を抽選するドメインサービス。
+ * 質問バンクから本質問を抽選するドメインサービス。
  *
- * 軸と表示順は固定:
- *   1. 自己認識        ×1
- *   2,3. 再現性        ×2（重複しない）
- *   4. 価値観 / 判断   ×1
- *   5. 世界観 / 知的好奇心 ×1
+ * 軸と表示順は {@link MAIN_QUESTION_AXIS_PLAN} に完全に従う。軸の並びをここに
+ * 重ねて持つと、計画を変えたときに生成側（IMainQuestionGenerationService）と
+ * 食い違うため、計画を舐めて対応する軸の候補から引く形にしている。
+ * 同じ軸が複数回現れる場合は、同じ質問を重ねて出さない。
  */
 export function selectMainQuestions(
   bank: QuestionBank,
   options: SelectMainQuestionsOptions = {},
 ): SelectedQuestion[] {
   const random = options.random ?? Math.random;
+  const plan = options.plan ?? MAIN_QUESTION_AXIS_PLAN;
 
-  const sa = pickOne(bank.selfAwareness.questions, random);
-  const [rp1, rp2] = pickTwo(bank.reproducibility.questions, random);
-  const vl = pickOne(bank.values.questions, random);
-  const wv = pickOne(bank.worldview.questions, random);
+  const byAxis = new Map<EvaluationAxis, BankAxis>();
+  for (const bankAxis of [
+    bank.selfAwareness,
+    bank.reproducibility,
+    bank.values,
+    bank.worldview,
+  ]) {
+    byAxis.set(bankAxis.axis, bankAxis);
+  }
 
-  return [
-    toSelected(sa, bank.selfAwareness.axis, 1),
-    toSelected(rp1, bank.reproducibility.axis, 2),
-    toSelected(rp2, bank.reproducibility.axis, 3),
-    toSelected(vl, bank.values.axis, 4),
-    toSelected(wv, bank.worldview.axis, 5),
-  ];
+  const usedBankIds = new Set<string>();
+  return plan.map((entry) => {
+    const bankAxis = byAxis.get(entry.axis);
+    if (!bankAxis) {
+      throw new InsufficientQuestionBankError(
+        `Question bank has no pool for axis ${entry.axis}`,
+      );
+    }
+    const candidates = bankAxis.questions.filter(
+      (question) => !usedBankIds.has(question.id),
+    );
+    const picked = fisherYates(candidates, random)[0];
+    if (!picked) {
+      throw new InsufficientQuestionBankError(
+        `Question pool for axis ${entry.axis} has fewer questions than the plan requires`,
+      );
+    }
+    usedBankIds.add(picked.id);
+    return toSelected(picked, entry.axis, entry.displayOrder);
+  });
 }

@@ -7,10 +7,8 @@ import type {
   AnswerResponse,
   NextQuestionResponse,
   QuestionResponse,
-  SessionDetailResponse,
+  ResumeSessionResponse,
 } from "@/app/api/types";
-import { MAIN_QUESTION_COUNT } from "@/domain/interview/services/selectMainQuestions";
-import { MAX_FOLLOW_UP_DEPTH } from "@/domain/interview/services/decideNextStep";
 import { MAX_ANSWER_LENGTH } from "@/domain/interview/model/answerConstraints";
 import { MAX_VOICE_SESSIONS_PER_DAY } from "@/domain/interview/model/voiceRateLimit";
 import {
@@ -19,10 +17,9 @@ import {
   type InterviewerType,
 } from "@/domain/interview/model/InterviewerType.vo";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
 
-/** 1 セッションの総質問数 = 本質問 5 問 × (本質問 1 + 深掘り最大 2)。 */
-const TOTAL_QUESTION_COUNT = MAIN_QUESTION_COUNT * (1 + MAX_FOLLOW_UP_DEPTH);
+/** 旧セッションストレージに総数が無い場合は、従来の普通（15問）として扱う。 */
+const DEFAULT_TOTAL_QUESTION_COUNT = 15;
 
 /* 入力フォームの寸法（何行で打ち止めるか・main が下に空ける余白）は
    globals.css の .ib-live 側のカスタムプロパティが持っている。画面幅で変わるため、
@@ -43,8 +40,13 @@ type StoredSession = {
   voiceEnabled: boolean;
   question: QuestionResponse;
   questionNumber: number;
+  totalQuestionCount?: number;
   interviewerType?: string;
   voiceLimited?: boolean;
+  /** 求人由来の質問生成を要求したが失敗し、質問バンクの出題に切り替わったか。 */
+  questionsFellBackToBank?: boolean;
+  /** この質問がまだ一度も読み上げられていないか。読み上げの直前に落とす（下記 consumePendingSpeech）。 */
+  pendingSpeech?: boolean;
 };
 
 /* ── Gemini TTS ── */
@@ -164,6 +166,28 @@ async function speakQuestion(
   else speakWebSpeech(fallbackText, () => setSpeaking(false));
 }
 
+/* 「まだ読み上げていない質問」だけを読み上げるためのキー。
+   sessionStorage の pendingSpeech は要求と同時に落とすため、リロードで再合成されることはないが、
+   StrictMode の mount→cleanup→mount では同じドキュメント内で effect が再実行される。
+   モジュール変数はリロードで消えてこの再実行では残るので、開発時の読み上げだけを救える。 */
+let _pendingSpeechKey: string | null = null;
+
+/**
+ * この質問を読み上げてよいか判定し、読み上げるなら sessionStorage のフラグを即座に落とす。
+ * 再開（リロード・別端末からの復帰）で同じ質問の音声を作り直さないための入口。
+ */
+function consumePendingSpeech(stored: StoredSession): boolean {
+  const key = `${stored.sessionId}:${stored.question.id}`;
+  if (_pendingSpeechKey === key) return true;
+  if (!stored.pendingSpeech) return false;
+  _pendingSpeechKey = key;
+  sessionStorage.setItem(
+    "ib-session",
+    JSON.stringify({ ...stored, pendingSpeech: false }),
+  );
+  return true;
+}
+
 /* ── Speech Recognition (Web Speech API) ── */
 
 type SpeechResultAlt = { transcript: string };
@@ -198,7 +222,7 @@ function AIPresence({ state }: { state: "idle" | "thinking" | "speaking" }) {
   return (
     <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
       {state === "thinking" && (
-        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
+        <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-neutral-300)", animation: "ib-breathe-ring 2s ease-out infinite" }} />
       )}
       <span aria-hidden style={{ position: "relative", width: 72, height: 72 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -216,7 +240,7 @@ function AbortModal({ onCancel, onConfirm, aborting }: { onCancel: () => void; o
     <div className="dialog-backdrop" onClick={onCancel}>
       <div className="dialog" onClick={(e) => e.stopPropagation()}>
         <div className="dialog-title">面接を中断しますか？</div>
-        <div className="dialog-body">ここまでの回答とフィードバックは保存されません。中断すると、この面接はやり直しになります。</div>
+        <div className="dialog-body">送信済みの回答は保存され、HOME画面から後で再開できます。入力中でまだ送信していない文章は保存されません。</div>
         <div className="dialog-actions">
           <button className="btn btn-secondary" onClick={onCancel} disabled={aborting}>続ける</button>
           <button className="btn btn-primary" onClick={onConfirm} disabled={aborting}>{aborting ? "中断しています…" : "中断する"}</button>
@@ -238,7 +262,11 @@ export default function LivePage() {
   const [interviewerType, setInterviewerType] = useState<InterviewerType>(DEFAULT_INTERVIEWER_TYPE);
   // 音声を要求したのに本日の枠が尽きていた場合のみ true（テキスト進行への切り替えを通知する）。
   const [voiceLimited, setVoiceLimited] = useState(false);
+  const [questionsFellBackToBank, setQuestionsFellBackToBank] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(1);
+  const [totalQuestionCount, setTotalQuestionCount] = useState(
+    DEFAULT_TOTAL_QUESTION_COUNT,
+  );
 
   // 質問の読み上げ中は true。面接官アバターの口パクに使う。
   const [speaking, setSpeaking] = useState(false);
@@ -346,8 +374,9 @@ export default function LivePage() {
 
   const toggleRecording = () => { if (recording) stopRecognition(); else startRecognition(); };
 
-  // sessionStorage から復元し、音声ありなら最初の質問の TTS を先に用意する。
-  // sessionStorage が無い（リロード等）場合はセッション詳細から未回答の質問を復元する（音声なし）。
+  // sessionStorage から復元する。音声ありでも読み上げるのは「まだ読み上げていない質問」だけで、
+  // 再開（リロード・中断からの復帰）で戻ってきた質問は合成し直さない。
+  // sessionStorage が無い（別端末・直接遷移等）場合は、DB の回答状況を正として再開する。
   // ref ガードは使わない: StrictMode の mount→cleanup→mount で in-flight の prepare が
   // キャンセルされたまま再実行されず固まるのを避けるため、cleanup の cancelled フラグだけで制御する。
   useEffect(() => {
@@ -363,9 +392,15 @@ export default function LivePage() {
       setVoiceEnabled(stored.voiceEnabled);
       setInterviewerType(storedType);
       setVoiceLimited(stored.voiceLimited ?? false);
+      setQuestionsFellBackToBank(stored.questionsFellBackToBank ?? false);
       setQuestionNumber(stored.questionNumber);
+      setTotalQuestionCount(
+        stored.totalQuestionCount ?? DEFAULT_TOTAL_QUESTION_COUNT,
+      );
 
-      if (!stored.voiceEnabled) {
+      // 再開した質問（既に読み上げ済み・再開で復元しただけの質問）は合成しない。
+      // リロードを繰り返すだけで TTS を無制限に呼べてしまうため。
+      if (!stored.voiceEnabled || !consumePendingSpeech(stored)) {
         setStatus("ready");
         /* eslint-enable react-hooks/set-state-in-effect */
         return;
@@ -384,23 +419,38 @@ export default function LivePage() {
       };
     }
 
-    // sessionStorage 無し（リロード等）→ セッション詳細から未回答の質問を復元する（音声なし）。
-    fetch(`/api/sessions/${sessionId}`)
-      .then((r) => r.json())
-      .then((detail: SessionDetailResponse) => {
+    // sessionStorage 無し（別端末・直接遷移等）→ DB 上の状態から再開位置を復元する。
+    fetch(`/api/sessions/${sessionId}/resume`, { method: "POST" })
+      .then(async (response) => {
+        if (response.status === 409) {
+          router.replace(`/interview/${sessionId}/feedback`);
+          return null;
+        }
+        if (!response.ok) throw new Error(`${response.status}`);
+        return (await response.json()) as ResumeSessionResponse;
+      })
+      .then(async (resumed) => {
         if (cancelled) return;
-        if (detail.endedAt) {
-          router.replace(`/interview/${sessionId}/feedback`);
-          return;
-        }
-        const unanswered = detail.questions.find((q) => q.answer === null);
-        if (!unanswered) {
-          router.replace(`/interview/${sessionId}/feedback`);
-          return;
-        }
-        setQuestion({ id: unanswered.id, text: unanswered.content });
-        setInterviewerType(resolveInterviewerType(detail.interviewerType));
-        setQuestionNumber(detail.questions.length);
+        if (resumed === null) return;
+        const resumedType = resolveInterviewerType(resumed.interviewerType);
+        setQuestion(resumed.currentQuestion);
+        setVoiceEnabled(resumed.voiceEnabled);
+        setInterviewerType(resumedType);
+        setQuestionNumber(resumed.questionNumber);
+        setTotalQuestionCount(resumed.totalQuestionCount);
+        sessionStorage.setItem(
+          "ib-session",
+          JSON.stringify({
+            sessionId: resumed.sessionId,
+            voiceEnabled: resumed.voiceEnabled,
+            question: resumed.currentQuestion,
+            questionNumber: resumed.questionNumber,
+            totalQuestionCount: resumed.totalQuestionCount,
+            interviewerType: resumed.interviewerType ?? undefined,
+            // 再開した質問は読み上げ済みとして扱う（次の質問から読み上げを再開する）。
+            pendingSpeech: false,
+          }),
+        );
         setStatus("ready");
       })
       .catch(() => {
@@ -482,9 +532,13 @@ export default function LivePage() {
         sessionId,
         question: next,
         questionNumber: questionNumber + 1,
+        totalQuestionCount,
         voiceEnabled,
         interviewerType,
         voiceLimited,
+        questionsFellBackToBank,
+        // この場で読み上げるため、リロード後に読み上げ直さない。
+        pendingSpeech: false,
       }));
       window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -496,8 +550,7 @@ export default function LivePage() {
     }
   };
 
-  // 中断：途中まで作成されたセッションを削除し、データを残さず HOME へ戻る。
-  // 破棄は取り消せないため、確認ダイアログを経てから実行する。
+  // 中断：送信済みの回答を DB に残したまま PAUSED にし、HOME へ戻る。
   const handleAbort = async () => {
     if (aborting) return;
     if (recording) stopRecognition();
@@ -505,7 +558,9 @@ export default function LivePage() {
     stopCurrentAudio();
     setSpeaking(false);
     try {
-      const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+      const res = await fetch(`/api/sessions/${sessionId}/pause`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(`${res.status}`);
       sessionStorage.removeItem("ib-session");
       router.replace("/home");
@@ -529,11 +584,11 @@ export default function LivePage() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--color-bg)", gap: 16, padding: 24, textAlign: "center" }}>
         <div style={{ position: "relative", width: 88, height: 88, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-accent-200)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
-          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-accent-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
+          <span style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", background: "var(--color-neutral-300)", animation: "ib-breathe-ring 2.2s ease-out infinite" }} />
+          <span style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--color-neutral-400)", animation: "ib-breathe 2.2s ease-in-out infinite" }} />
         </div>
-        <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "var(--font-jp)" }}>面接の準備をしています…</div>
-        <p style={{ margin: 0, fontSize: 13, color: muted(55), maxWidth: "34ch", fontFamily: "var(--font-jp)" }}>AI が最初の質問を用意しています。もう少しだけお待ちください。</p>
+        <div style={{ fontSize: 16, fontWeight: 500 }}>面接の準備をしています…</div>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)", maxWidth: "34ch" }}>AI が最初の質問を用意しています。もう少しだけお待ちください。</p>
       </div>
     );
   }
@@ -546,24 +601,33 @@ export default function LivePage() {
       {/* minimal top bar */}
       <header className="ib-live-bar">
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, whiteSpace: "nowrap" }}>
-          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "var(--font-jp)" }}>
-            質問 {questionNumber} / {TOTAL_QUESTION_COUNT} 問
+          <span style={{ fontSize: 13, fontWeight: 500 }}>
+            質問 {questionNumber} / {totalQuestionCount} 問
           </span>
           <span aria-hidden className="ib-live-progress">
-            <span style={{ display: "block", height: "100%", width: `${(questionNumber / TOTAL_QUESTION_COUNT) * 100}%`, background: "var(--color-accent-500)", borderRadius: 2, transition: "width .4s ease" }} />
+            <span style={{ display: "block", height: "100%", width: `${Math.min(100, (questionNumber / totalQuestionCount) * 100)}%`, background: "var(--color-accent)", borderRadius: 2, transition: "width .4s ease" }} />
           </span>
-          <span style={{ fontSize: 12, color: muted(50), fontFamily: "var(--font-jp)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>・ 読み上げ {voiceEnabled ? "ON" : "OFF"}</span>
         </div>
         <button className="btn btn-ghost" onClick={() => setShowAbort(true)} style={{ fontSize: 12, flex: "none" }}>面接を中断する</button>
       </header>
 
       <main className="ib-live-main">
-        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 24 }}>
+        <div style={{ width: "min(720px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 32 }}>
           {voiceLimited && (
             <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
-              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-              <div style={{ fontSize: 12.5, color: muted(65), lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
                 本日の音声利用枠（1日{MAX_VOICE_SESSIONS_PER_DAY}回）は使用済みのため、テキストのみで進行します。
+              </div>
+            </div>
+          )}
+
+          {questionsFellBackToBank && (
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-surface)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                求人内容からの質問生成に失敗したため、通常の質問で進行します。
               </div>
             </div>
           )}
@@ -572,13 +636,13 @@ export default function LivePage() {
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <AIPresence state={aiState} />
-            <div style={{ fontSize: 13, fontWeight: 600, color: muted(70), fontFamily: "var(--font-jp)" }}>{aiStateLabel}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-2)" }}>{aiStateLabel}</div>
           </div>
 
           {error && (
-            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-              <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-              <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, flex: 1, fontFamily: "var(--font-jp)" }}>{error}</div>
+            <div style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7, flex: 1 }}>{error}</div>
               <button className="btn btn-ghost" onClick={() => setError("")} style={{ fontSize: 12, flex: "none" }}>閉じる</button>
             </div>
           )}
@@ -587,7 +651,7 @@ export default function LivePage() {
 
       {/* composer：画面下に固定。フロー外に置くことで、行が増えても main 側は動かない */}
       <footer className="ib-live-footer">
-        <div style={{ width: "min(640px, 100%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
+        <div style={{ width: "min(780px, 100%)", display: "flex", flexDirection: "column", gap: 8, pointerEvents: "auto" }}>
           <div className="ib-composer">
             <textarea
               ref={taRef}
@@ -596,7 +660,7 @@ export default function LivePage() {
               value={text}
               maxLength={MAX_ANSWER_LENGTH}
               onChange={(e) => handleManualEdit(e.target.value)}
-              placeholder={recording ? "聞き取っています…" : "回答を入力するか、マイクで話してください"}
+              placeholder={recording ? "聞き取っています…" : "回答を入力してください"}
               onKeyDown={handleKeyDown}
             />
             {sttSupported && (
@@ -605,7 +669,7 @@ export default function LivePage() {
                 onClick={toggleRecording}
                 title={recording ? "停止" : "マイクで入力"}
                 aria-pressed={recording}
-                style={{ all: "unset", cursor: "pointer", flex: "none", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-accent-600)" : muted(55), transition: "background .15s ease" }}
+                style={{ all: "unset", cursor: "pointer", flex: "none", width: "var(--composer-btn)", height: "var(--composer-btn)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: recording ? "var(--color-danger)" : "var(--ink-3)", transition: "background .15s ease" }}
               >
                 <LcMic size={19} />
               </button>
@@ -614,7 +678,7 @@ export default function LivePage() {
               type="button"
               onClick={handleSend}
               disabled={!sendActive}
-              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: 44, height: 44, borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
+              style={{ all: "unset", cursor: sendActive ? "pointer" : "not-allowed", flex: "none", width: "var(--composer-send)", height: "var(--composer-send)", borderRadius: "50%", background: sendActive ? "var(--color-text)" : "var(--color-neutral-400)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", opacity: sending ? 0.7 : 1 }}
             >
               {sending ? (
                 <span style={{ width: 15, height: 15, border: "2px solid color-mix(in srgb, #fff 40%, transparent)", borderTopColor: "#fff", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
@@ -627,17 +691,20 @@ export default function LivePage() {
           {/* ヒント行：左に操作ヒント／録音状態、右に文字数カウンタ */}
           <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             {recording ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-accent-600)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
-                <span>録音中です。もう一度マイクをタップすると停止します。</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, color: "var(--color-danger)" }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--color-danger)", animation: "ib-rec-pulse 1s ease-in-out infinite" }} />
+                <span>録音中です。もう一度タップで停止します。</span>
               </div>
             ) : (
-              <div style={{ fontSize: 11.5, color: muted(40), fontFamily: "var(--font-jp)" }}>
+              <div className="ib-kbd-hint">
                 Shift + Enter で改行・Enter で送信
               </div>
             )}
             {text.length > 0 && (
-              <div style={{ flex: "none", fontSize: 11.5, fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-jp)", color: nearLimit ? "var(--color-accent-700)" : muted(40) }}>
+              <div
+                className={`ib-char-count${nearLimit ? " ib-char-count-near" : ""}`}
+                style={{ flex: "none", marginLeft: "auto", color: nearLimit ? "var(--color-danger)" : "var(--ink-4)" }}
+              >
                 {text.length} / {MAX_ANSWER_LENGTH}
               </div>
             )}
@@ -645,8 +712,8 @@ export default function LivePage() {
 
           {!sttSupported && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-              <span style={{ flex: "none", marginTop: 2, color: muted(50) }}><LcAlert size={14} /></span>
-              <div style={{ fontSize: 12, lineHeight: 1.6, color: muted(55), fontFamily: "var(--font-jp)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--ink-3)" }}><LcAlert size={14} /></span>
+              <div style={{ fontSize: 12, lineHeight: 1.6, color: "var(--ink-3)" }}>お使いのブラウザは音声入力に対応していません。テキストでご回答ください。</div>
             </div>
           )}
         </div>

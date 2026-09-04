@@ -10,6 +10,11 @@ const profile: UserProfile = {
   name: "テスト太郎",
   email: "taro@example.com",
   image: null,
+  careerPreference: {
+    industry: { major: "IT・インターネット", minor: "ソフトウェア・SaaS" },
+    job: null,
+  },
+  onboardingCompleted: true,
   totalSessions: 3,
   lastSessionAt: new Date("2026-07-01T00:00:00.000Z"),
 };
@@ -19,6 +24,8 @@ function createRepository(
 ): IUserRepository {
   return {
     getProfileWithStats: vi.fn().mockResolvedValue(profile),
+    isOnboardingCompleted: vi.fn().mockResolvedValue(true),
+    updateProfile: vi.fn().mockResolvedValue(true),
     delete: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

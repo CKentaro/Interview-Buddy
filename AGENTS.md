@@ -10,13 +10,15 @@
 - Lint: `npm run lint`（ESLint flat config）／型チェック: `npx tsc --noEmit`
 - DB（Docker + Prisma）: `npm run db:up` / `db:down` / `db:migrate` / `db:studio`
   - `npm run db:reset` はボリューム削除を伴う。実行前に必ず確認すること。
+  - 企業マスタ投入: `npm run db:seed`（`prisma/seed/companies.json` を upsert）。
+    データ更新は `npm run companies:fetch`（EDINET から再取得して JSON を作り直す）。
 
 ## スタック
 Next.js 16（App Router）/ React 19 / TypeScript / Prisma 7 / Auth.js（next-auth v5 beta）/ Vitest。
 パスエイリアス `@/*` → `src/*`。
 
 ## アーキテクチャ（DDD・レイヤ境界は厳守）
-境界づけられたコンテキスト: `interview` と `feedback`。
+境界づけられたコンテキスト: `interview` / `feedback` / `company`（企業マスタ）。
 
 - `src/domain/**` — 純粋ドメイン。`model/`（`*.entity.ts` / `*.vo.ts`）, `ports/`（インターフェース）, `services/`。
   **この層に Prisma / Gemini / Next.js を import しない。**
@@ -33,6 +35,8 @@ Next.js 16（App Router）/ React 19 / TypeScript / Prisma 7 / Auth.js（next-au
 - **commit / branch / PR はユーザーの明示指示があるまで実行しない。**
 
 ## 注意点（gotchas）
+- 企業マスタ（`Company`）は EDINET コードリスト由来で日本の全法人ではない。**マスタに無い企業でも面接練習を開始できる**こと（`companyName` は自由入力、`companyId` は null 可）を壊さない。
+- 企業名の突き合わせは `normalizeCompanyName`（`src/domain/company/services/`）に一本化する。検索キーの生成（シード）と求人ページからの自動紐づけが同じ規則である必要がある。
 - Gemini 系サービス（`GeminiFeedbackService` / `GeminiFollowUpQuestionService` / `GeminiQuestionSpeechService`）は Vercel AI SDK（`ai` の `generateText` + `Output.object`）で実装済み。モデルは `geminiModel()`（`src/infrastructure/ai/geminiModel.ts`）経由。
 - `src/generated/prisma/**` は Prisma 生成物。手編集せず `npm run db:migrate` / `prisma generate` で再生成する。
 - Next.js: 記憶に頼らず、下記 `./.next-docs` 索引を検索・参照してから作業する。

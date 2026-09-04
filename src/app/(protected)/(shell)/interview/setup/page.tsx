@@ -1,37 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { CompanyCombobox } from "@/components/company/CompanyCombobox";
+import { CompanyLinkBadge } from "@/components/company/CompanyLinkBadge";
+import { DependentSelectField } from "@/components/ui/DependentSelectField";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
-import type { SessionResponse, VoiceUsageResponse } from "@/app/api/types";
+import {
+  InterviewLength,
+  resolveInterviewLength,
+} from "@/domain/interview/model/InterviewLength.vo";
+import { getInterviewLengthPolicy } from "@/domain/interview/model/interviewLengthPolicy";
+import {
+  INDUSTRY_TAXONOMY,
+  ROLE_TAXONOMY,
+} from "@/domain/interview/model/careerTaxonomy";
+import type {
+  AnalyzeJobPostingResponse,
+  JobPostingFailureReason,
+  JobPostingPageKindResponse,
+  SessionDetailResponse,
+  SessionResponse,
+  UserMeResponse,
+  VoiceUsageResponse,
+} from "@/app/api/types";
 
-const muted = (p: number) => `color-mix(in srgb, var(--color-text) ${p}%, transparent)`;
+// 分類マスタはドメイン側の単一の真実源を参照する（求人票の抽出でも同じ集合を使う）。
+const INDUSTRY: Record<string, readonly string[]> = INDUSTRY_TAXONOMY;
+const ROLE: Record<string, readonly string[]> = ROLE_TAXONOMY;
+
 
 /* ── Static data ── */
-const INDUSTRY: Record<string, string[]> = {
-  "メーカー・商社": ["自動車", "電気・電子", "機械", "化学・素材", "食品・飲料", "医薬品・医療機器", "家具・インテリア", "衣料・アパレル", "総合商社", "専門商社"],
-  "金融・保険": ["銀行", "証券", "保険", "クレジットカード・信販", "リース", "資産運用・投資顧問"],
-  "IT・インターネット": ["SIer・システム開発", "Web・インターネットサービス", "ソフトウェア・SaaS", "通信・インフラ", "ハードウェア・半導体", "ゲーム", "セキュリティ", "AI・データ", "EC・広告"],
-  "流通・小売・サービス": ["百貨店", "スーパーマーケット", "コンビニエンスストア", "専門店（ファッション）", "専門店（電気・電子）", "通信販売・Eコマース", "ホテル・旅行", "飲食業", "理美容・エステ", "教育・研修"],
-  "建築・不動産": ["ゼネコン・建築", "ハウスメーカー", "設計・建築", "不動産開発", "不動産仲介・管理"],
-  メディカル: ["病院・クリニック", "製薬会社", "医療機器メーカー", "看護・介護施設", "医療関連サービス"],
-  "マスコミ・メディア": ["新聞", "テレビ", "ラジオ", "出版", "広告代理店", "インターネットメディア"],
-  "コンサルティング・士業": ["経営コンサルティング", "ITコンサルティング", "人事コンサルティング", "弁護士", "公認会計士", "税理士"],
-  "運輸・物流": ["航空", "鉄道", "海運", "陸運・運送", "物流・倉庫"],
-  エネルギー: ["電力", "ガス", "石油・石炭", "再生エネルギー"],
-  エンターテインメント: ["ゲーム・アミューズメント", "映画・映像", "音楽・音響", "スポーツ"],
-};
-const ROLE: Record<string, string[]> = {
-  技術系: ["ソフトウェアエンジニア", "システムエンジニア", "ネットワークエンジニア", "クラウドエンジニア", "データベースエンジニア", "セキュリティエンジニア", "モバイルアプリ開発者", "Webエンジニア", "フルスタックエンジニア", "DevOpsエンジニア", "MLエンジニア", "データサイエンティスト", "組み込みエンジニア", "その他エンジニア"],
-  事務系: ["総務", "人事", "経理", "財務", "法務", "広報", "経営企画", "マーケ", "営業企画"],
-  営業: ["法人営業", "個人営業", "海外営業", "技術営業", "インサイドセールス", "カスタマーサクセス"],
-  クリエイティブ: ["Webデザイナー", "グラフィックデザイナー", "UIデザイナー", "UXデザイナー", "イラストレーター", "ゲームデザイナー"],
-  コンサルティング: ["経営コンサル", "ITコンサル", "人事コンサル", "財務コンサル"],
-  医療: ["医師", "看護師", "薬剤師", "臨床検査技師", "理学療法士", "作業療法士"],
-  士業: ["弁護士", "公認会計士", "税理士", "司法書士", "行政書士", "社会保険労務士", "弁理士"],
-};
 const PHASES = [
   { key: "first", label: "一次面接", desc: "人柄や基本的な適性を、対話を通じて確認します。" },
   { key: "second", label: "二次面接", desc: "これまでの経験を深掘りし、実務との適合を見ます。" },
@@ -42,14 +44,89 @@ const INTERVIEWERS = [
   { key: "neutral", label: INTERVIEWER_TYPE_LABEL.neutral, desc: "淡々とした、標準的な進行です。" },
   { key: "strict", label: INTERVIEWER_TYPE_LABEL.strict, desc: "圧迫気味の追及を再現します。" },
 ];
+const INTERVIEW_LENGTH_OPTIONS = [
+  { key: InterviewLength.SHORT, label: "短め・全8問", desc: "4つの観点をコンパクトに練習します。" },
+  { key: InterviewLength.STANDARD, label: "普通・全12問", desc: "4つの観点をそれぞれ深く練習します。" },
+  { key: InterviewLength.LONG, label: "長め・全18問", desc: "再現性と価値観を2つの大問で練習します。" },
+] as const;
+/** 解析に失敗した理由ごとの案内文。いずれの場合も手入力で先へ進める。 */
+const FAILURE_MESSAGE: Record<JobPostingFailureReason, string> = {
+  INVALID_URL: "URL の形式が正しくないか、指定できないアドレスです。",
+  UNREACHABLE: "ページに接続できませんでした。サイト側が自動での読み込みを許可していない場合があります。",
+  UNSUPPORTED_CONTENT: "HTML ページではないため読み込めませんでした。",
+  EMPTY_CONTENT: "ページの本文を取得できませんでした。ログインが必要なページの可能性があります。",
+  EXTRACTION_FAILED: "ページの解析に失敗しました。時間をおいて試すか、そのまま手入力で進めてください。",
+};
+
+/** 読み取れたページ種別ごとの補足。何がどこまで埋まったかを利用者に伝える。 */
+const PAGE_KIND_MESSAGE: Record<JobPostingPageKindResponse, string> = {
+  SINGLE_JOB_POSTING: "求人票として読み取りました。",
+  JOB_LIST: "求人一覧ページのようです。個別の求人ページの URL だと、より詳しく読み取れます。",
+  COMPANY_RECRUIT_PAGE: "企業の採用ページとして読み取りました。職種は個別の求人ページか、手入力で指定してください。",
+  ERROR_OR_LOGIN: "求人の内容を読み取れませんでした。ログインが必要なページの可能性があります。",
+  OTHER: "求人ページとして読み取れませんでした。",
+};
+
 const STEP_TITLES = ["志望業界", "志望企業・職種", "選考フェーズ", "面接の雰囲気", "確認"];
 const STEP_TOTAL = STEP_TITLES.length;
+/** 確認ステップの添字。編集から戻る先。 */
+const CONFIRM_STEP = STEP_TOTAL - 1;
 
 type FormData = {
   industryMajor: string; industryMinor: string;
-  companyName: string; roleMajor: string; roleMinor: string;
+  /** 企業マスタと紐づいたときだけ ID が入る。自由入力なら null のまま。 */
+  companyName: string; companyId: string | null;
+  roleMajor: string; roleMinor: string;
   phase: string; interviewerType: string; voiceOn: boolean;
+  interviewLength: InterviewLength;
 };
+
+/**
+ * マイページに登録済みの志望設定のうち、このフォームへ流し込める分。
+ * 業界・職種はそれぞれ大小がそろっているときだけ持つ（片方だけでは選択が成立しない）。
+ */
+type ProfilePreference = {
+  industryMajor: string; industryMinor: string;
+  roleMajor: string; roleMinor: string;
+};
+
+/** ステップ s の入力が揃っているか。確認ステップは常に有効。 */
+function isStepComplete(form: FormData, s: number): boolean {
+  // 求人 URL の読み込みは任意。読み込めなくても手入力で先へ進める。
+  if (s === 0) return !!form.industryMajor && !!form.industryMinor;
+  if (s === 1) return !!form.companyName.trim() && !!form.roleMajor && !!form.roleMinor;
+  if (s === 2) return !!form.phase;
+  if (s === 3) return !!form.interviewerType;
+  return true;
+}
+
+/**
+ * 復元した設定から 1 項目も変わっていないか。
+ * 音声だけは本日の枠切れによる強制オフを「ユーザーによる変更」とみなさないよう、
+ * 両辺に同じ枠の判定をかけてから比べる。
+ */
+function isSameSettings(a: FormData, b: FormData, voiceExhausted: boolean): boolean {
+  return (
+    a.industryMajor === b.industryMajor &&
+    a.industryMinor === b.industryMinor &&
+    a.companyName.trim() === b.companyName.trim() &&
+    a.companyId === b.companyId &&
+    a.roleMajor === b.roleMajor &&
+    a.roleMinor === b.roleMinor &&
+    a.phase === b.phase &&
+    a.interviewerType === b.interviewerType &&
+    a.interviewLength === b.interviewLength &&
+    (a.voiceOn && !voiceExhausted) === (b.voiceOn && !voiceExhausted)
+  );
+}
+
+/** 最初に未入力が残っているステップ。すべて埋まっていれば確認ステップ。 */
+function firstIncompleteStep(form: FormData): number {
+  for (let s = 0; s < CONFIRM_STEP; s++) {
+    if (!isStepComplete(form, s)) return s;
+  }
+  return CONFIRM_STEP;
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -63,23 +140,90 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Choice({ label, desc, active, onSelect }: { label: string; desc: string; active: boolean; onSelect: () => void }) {
   return (
     <button className={`ib-choice${active ? " ib-choice-active" : ""}`} onClick={onSelect} type="button">
-      <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{label}</div>
-      <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)" }}>{desc}</div>
+      <div style={{ fontSize: 14.5, fontWeight: 500 }}>{label}</div>
+      <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{desc}</div>
     </button>
   );
 }
 
-export default function SetupPage() {
+function SetupWizard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  /** 「同じ設定でもう一度」の遷移元セッション。指定が無ければ通常の新規設定。 */
+  const sourceSessionId = searchParams.get("from");
+  const { data: authSession } = useSession();
   const [step, setStep] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
   const [voiceQuota, setVoiceQuota] = useState<VoiceUsageResponse | null>(null);
+  /** マイページに登録済みの志望設定。未登録・取得失敗なら null。 */
+  const [profilePreference, setProfilePreference] = useState<ProfilePreference | null>(null);
+  const [jobUrl, setJobUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  /** 解析結果。null は未解析。failed も保持して理由を表示する。 */
+  const [analysis, setAnalysis] = useState<AnalyzeJobPostingResponse | null>(null);
+  const [useGeneratedQuestions, setUseGeneratedQuestions] = useState(false);
+  /**
+   * 確認ステップの「編集」から来ているか。
+   * true の間は、そのステップを終えると残りのステップを辿らず確認へ直接戻る。
+   */
+  const [editingFromConfirm, setEditingFromConfirm] = useState(false);
+  /** 遷移元セッションからの設定復元の状態。none は復元指定なし。 */
+  const [prefill, setPrefill] = useState<"none" | "loading" | "applied" | "failed">(
+    sourceSessionId === null ? "none" : "loading",
+  );
+  /** 遷移元セッションの大問の軸構成（表示順）。引き継げるかの判定に使う。 */
+  const [sourceMainAxes, setSourceMainAxes] = useState<string[] | null>(null);
+  /** 復元直後のフォーム。ここから 1 項目でも変えたら大問の引き継ぎをやめる。 */
+  const [restoredForm, setRestoredForm] = useState<FormData | null>(null);
   const [form, setForm] = useState<FormData>({
-    industryMajor: "", industryMinor: "", companyName: "",
+    industryMajor: "", industryMinor: "", companyName: "", companyId: null,
     roleMajor: "", roleMinor: "", phase: "", interviewerType: "", voiceOn: false,
+    interviewLength: InterviewLength.STANDARD,
   });
+
+  /*
+   * 「同じ設定でもう一度」で渡された過去セッションの設定をフォームへ復元する。
+   * 復元できたら確認ステップまで飛ばす（項目が欠けている過去セッションのときだけ、
+   * その入力ステップから始める）。求人 URL 由来の質問生成は材料を保存していないため
+   * 引き継がず、質問はその設定であらためて用意する。
+   */
+  useEffect(() => {
+    if (sourceSessionId === null) return;
+    let cancelled = false;
+    fetch(`/api/sessions/${sourceSessionId}`)
+      .then((r) => (r.ok ? (r.json() as Promise<SessionDetailResponse>) : null))
+      .then((detail) => {
+        if (cancelled) return;
+        if (detail === null) { setPrefill("failed"); return; }
+        // 選択肢に無い値（マスタ改訂後の古いセッション等）は未設定として扱う。
+        const restored: FormData = {
+          industryMajor: detail.industryMajor ?? "",
+          industryMinor: detail.industryMinor ?? "",
+          companyName: detail.companyName ?? "",
+          companyId: detail.companyId,
+          roleMajor: detail.jobMajor ?? "",
+          roleMinor: detail.jobMinor ?? "",
+          phase: PHASES.find((p) => p.key === detail.selectionStage)?.key ?? "",
+          interviewerType: INTERVIEWERS.find((t) => t.key === detail.interviewerType)?.key ?? "",
+          voiceOn: detail.voiceEnabled,
+          interviewLength: resolveInterviewLength(detail.interviewLength),
+        };
+        setSourceMainAxes(
+          detail.questions
+            .filter((question) => question.type === "MAIN")
+            .sort((a, b) => a.displayOrder - b.displayOrder)
+            .map((question) => String(question.primaryAxis)),
+        );
+        setForm(restored);
+        setRestoredForm(restored);
+        setStep(firstIncompleteStep(restored));
+        setPrefill("applied");
+      })
+      .catch(() => { if (!cancelled) setPrefill("failed"); });
+    return () => { cancelled = true; };
+  }, [sourceSessionId]);
 
   // 本日の音声ありセッション残回数を取得する（取得失敗時は表示を出さないだけ）。
   useEffect(() => {
@@ -97,28 +241,159 @@ export default function SetupPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // マイページの志望設定を読み込む（登録済みのときだけ「反映する」導線を出す）。
+  useEffect(() => {
+    const userId = authSession?.user?.id;
+    if (!userId) return;
+    let cancelled = false;
+    fetch(`/api/users/${userId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((me: UserMeResponse | null) => {
+        if (cancelled || me === null) return;
+        // 大小そろった側だけを候補にする。両方そろわなければ導線自体を出さない。
+        const industry = me.industryMajor && me.industryMinor
+          ? { industryMajor: me.industryMajor, industryMinor: me.industryMinor }
+          : null;
+        const role = me.jobMajor && me.jobMinor
+          ? { roleMajor: me.jobMajor, roleMinor: me.jobMinor }
+          : null;
+        if (industry === null && role === null) return;
+        setProfilePreference({
+          industryMajor: industry?.industryMajor ?? "",
+          industryMinor: industry?.industryMinor ?? "",
+          roleMajor: role?.roleMajor ?? "",
+          roleMinor: role?.roleMinor ?? "",
+        });
+      })
+      .catch(() => {
+        /* 志望設定は補助情報のため、失敗しても手入力で先へ進める */
+      });
+    return () => { cancelled = true; };
+  }, [authSession?.user?.id]);
+
   const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
+
+  /* 実際に音声で開始するか。本日の枠が尽きていれば、設定の復元やトグルの値によらず必ず false。 */
+  const voiceOn = form.voiceOn && !voiceExhausted;
+  const analyzed = analysis?.status === "analyzed" ? analysis : null;
+  /** 求人由来の質問生成を選べるか（解析済みかつ材料が十分なときだけ）。 */
+  const canGenerateQuestions = analyzed?.usableAsContext === true;
+
+  /*
+   * 大問を前回と同じ質問で出題するか。
+   * 前提は「復元した設定のまま始める」こと。確認画面の編集で 1 項目でも変えたら、
+   * その設定に合った質問をあらためて用意する（前回と揃える意味がなくなるため）。
+   * 加えて、軸の並びが今回の出題計画と一致することも要る（サーバー側の
+   * StartInterviewUseCase と同じ判定。軸構成の改訂前に作られた古いセッション対策）。
+   */
+  const reusesMainQuestions = (() => {
+    if (sourceMainAxes === null || restoredForm === null) return false;
+    if (!isSameSettings(form, restoredForm, voiceExhausted)) return false;
+    // 求人由来の生成を明示的にオンにしているなら、そちらを優先する。
+    // 両方を送るとサーバーは引き継ぎを採り、生成は試されないまま
+    // 「生成に失敗した」という誤った通知がライブ画面に出てしまう。
+    if (canGenerateQuestions && useGeneratedQuestions) return false;
+    const plan = getInterviewLengthPolicy(form.interviewLength).mainQuestionPlan;
+    return (
+      plan.length === sourceMainAxes.length &&
+      plan.every((entry, i) => String(entry.axis) === sourceMainAxes[i])
+    );
+  })();
+
+  /**
+   * 求人ページを解析し、埋められた項目だけフォームへ反映する。
+   * 抽出できなかった項目は既存の入力値を残し、ユーザーが手で埋める。
+   */
+  const analyzeJobUrl = async () => {
+    const url = jobUrl.trim();
+    if (url === "" || analyzing) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    try {
+      const res = await fetch("/api/job-postings/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const result = (await res.json()) as AnalyzeJobPostingResponse;
+      setAnalysis(result);
+      if (result.status === "analyzed") {
+        setForm((f) => ({
+          ...f,
+          companyName: result.companyName ?? f.companyName,
+          // 企業名を差し替えたら紐づけも張り直す（一致しなければ null に戻す）。
+          companyId: result.companyName ? result.company?.id ?? null : f.companyId,
+          // 業界・職種は大小がそろって初めてフォームの選択として成立する。
+          ...(result.industryMajor && result.industryMinor
+            ? { industryMajor: result.industryMajor, industryMinor: result.industryMinor }
+            : {}),
+          ...(result.jobMajor && result.jobMinor
+            ? { roleMajor: result.jobMajor, roleMinor: result.jobMinor }
+            : {}),
+        }));
+        setUseGeneratedQuestions(result.usableAsContext);
+      } else {
+        setUseGeneratedQuestions(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setAnalysis({ status: "failed", reason: "EXTRACTION_FAILED" });
+      setUseGeneratedQuestions(false);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  /**
+   * マイページの志望設定をフォームへ反映する。
+   * 登録がある項目だけを上書きし、企業名や既に入力済みの他項目は触らない。
+   */
+  const applyProfilePreference = () => {
+    if (profilePreference === null) return;
+    setForm((f) => ({
+      ...f,
+      ...(profilePreference.industryMajor
+        ? { industryMajor: profilePreference.industryMajor, industryMinor: profilePreference.industryMinor }
+        : {}),
+      ...(profilePreference.roleMajor
+        ? { roleMajor: profilePreference.roleMajor, roleMinor: profilePreference.roleMinor }
+        : {}),
+    }));
+    setShowHint(false);
+  };
 
   const patch = (p: Partial<FormData>) => { setForm((f) => ({ ...f, ...p })); setShowHint(false); };
 
-  const isStepValid = (s: number): boolean => {
-    if (s === 0) return !!form.industryMajor && !!form.industryMinor;
-    if (s === 1) return !!form.companyName.trim() && !!form.roleMajor && !!form.roleMinor;
-    if (s === 2) return !!form.phase;
-    if (s === 3) return !!form.interviewerType;
-    return true;
-  };
+  const isStepValid = (s: number): boolean => isStepComplete(form, s);
 
   const goBack = () => { setStep((s) => Math.max(0, s - 1)); setShowHint(false); };
   const goNext = () => {
     if (!isStepValid(step)) { setShowHint(true); return; }
-    setStep((s) => Math.min(STEP_TOTAL - 1, s + 1)); setShowHint(false);
+    setStep((s) => Math.min(CONFIRM_STEP, s + 1)); setShowHint(false);
+  };
+
+  /** 確認ステップの「編集」。そのステップへ移動し、完了後は確認へ直接戻す。 */
+  const startEditing = (target: number) => {
+    setEditingFromConfirm(true);
+    setStep(target);
+    setShowHint(false);
+  };
+
+  /** 編集を終えて確認ステップへ戻る。未入力があればその場で知らせる。 */
+  const finishEditing = () => {
+    if (!isStepValid(step)) { setShowHint(true); return; }
+    setEditingFromConfirm(false);
+    setStep(CONFIRM_STEP);
+    setShowHint(false);
   };
 
   const fillSample = () => setForm({
     industryMajor: "IT・インターネット", industryMinor: "Web・インターネットサービス",
-    companyName: "株式会社interview buddy", roleMajor: "技術系", roleMinor: "Webエンジニア",
+    companyName: "株式会社interview buddy", companyId: null,
+    roleMajor: "技術系", roleMinor: "Webエンジニア",
     phase: "second", interviewerType: "neutral", voiceOn: false,
+    interviewLength: InterviewLength.STANDARD,
   });
 
   const startInterview = async () => {
@@ -129,13 +404,22 @@ export default function SetupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyName: form.companyName,
+          ...(form.companyId !== null ? { companyId: form.companyId } : {}),
           industryMajor: form.industryMajor,
           industryMinor: form.industryMinor,
           jobMajor: form.roleMajor,
           jobMinor: form.roleMinor,
           selectionStage: form.phase,
           interviewerType: form.interviewerType,
-          voiceEnabled: form.voiceOn,
+          voiceEnabled: voiceOn,
+          interviewLength: form.interviewLength,
+          // 設定を変えずに始めるときだけ、大問を前回と同じ質問にする
+          // （所有チェックと軸構成の最終判定はサーバー側）。
+          ...(reusesMainQuestions && sourceSessionId !== null
+            ? { reuseQuestionsFromSessionId: sourceSessionId }
+            : {}),
+          ...(analyzed ? { jobPosting: analyzed } : {}),
+          generateQuestionsFromJobPosting: canGenerateQuestions && useGeneratedQuestions,
         }),
       });
       if (!res.ok) throw new Error(`${res.status}`);
@@ -146,9 +430,16 @@ export default function SetupPage() {
         voiceEnabled: session.voiceEnabled,
         question: session.firstQuestion,
         questionNumber: 1,
+        totalQuestionCount: session.totalQuestionCount,
+        interviewLength: session.interviewLength,
         interviewerType: form.interviewerType,
         // 音声を要求したのに枠超過で無効化された場合のみ、ライブ画面で通知する。
-        voiceLimited: form.voiceOn && !session.voiceEnabled,
+        voiceLimited: voiceOn && !session.voiceEnabled,
+        // 生成を要求したのに失敗してバンク出題に落ちた場合のみ、ライブ画面で通知する。
+        questionsFellBackToBank:
+          canGenerateQuestions && useGeneratedQuestions && !session.questionsGeneratedFromJobPosting,
+        // 開始直後の 1 問目だけは未読み上げ。ライブ画面が読み上げる際にこのフラグを落とす。
+        pendingSpeech: session.voiceEnabled,
       }));
       router.push(`/interview/${session.sessionId}/live`);
     } catch (e) {
@@ -160,12 +451,38 @@ export default function SetupPage() {
 
   const phaseLabel = PHASES.find((p) => p.key === form.phase)?.label ?? "未設定";
   const typeLabel = INTERVIEWERS.find((t) => t.key === form.interviewerType)?.label ?? "未設定";
-  const summary = [
+  const lengthLabel = INTERVIEW_LENGTH_OPTIONS.find(
+    (option) => option.key === form.interviewLength,
+  )?.label ?? "普通・全12問";
+  const summary: { label: string; value: React.ReactNode; goto: number }[] = [
     { label: "志望業界", value: form.industryMajor ? `${form.industryMajor} ／ ${form.industryMinor}` : "未設定", goto: 0 },
-    { label: "志望企業・職種", value: `${form.companyName || "未設定"}${form.roleMajor ? `　・　${form.roleMajor} ／ ${form.roleMinor}` : ""}`, goto: 1 },
+    {
+      label: "志望企業・職種",
+      // 印は企業名の直後に置く（職種の後ろだと何に紐づいた印か分からない）。
+      value: (
+        <>
+          <span style={{ minWidth: 0 }}>{form.companyName || "未設定"}</span>
+          {form.companyId !== null && <CompanyLinkBadge />}
+          {form.roleMajor && <span>　・　{form.roleMajor} ／ {form.roleMinor}</span>}
+        </>
+      ),
+      goto: 1,
+    },
     { label: "選考フェーズ", value: phaseLabel, goto: 2 },
-    { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${form.voiceOn ? "あり" : "なし"}`, goto: 3 },
+    { label: "面接の長さ", value: lengthLabel, goto: 3 },
+    { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${voiceOn ? "あり" : "なし"}`, goto: 3 },
   ];
+
+  if (prefill === "loading") {
+    return (
+      <main className="ib-setup-main">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "var(--ink-3)" }}>
+          <span style={{ width: 15, height: 15, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+          <span>前回の設定を読み込んでいます…</span>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="ib-setup-main">
@@ -184,26 +501,139 @@ export default function SetupPage() {
           {/* progress */}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: muted(55), fontFamily: "var(--font-jp)" }}>ステップ {step + 1} / {STEP_TOTAL}</div>
-              <div style={{ fontSize: 12, color: muted(55), fontFamily: "var(--font-jp)" }}>{STEP_TITLES[step]}</div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--ink-3)" }}>
+                {editingFromConfirm ? "内容を編集しています" : `ステップ ${step + 1} / ${STEP_TOTAL}`}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{STEP_TITLES[step]}</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {STEP_TITLES.map((_, i) => (
                 <div key={i} style={{
-                  flex: 1, height: 6, borderRadius: 999,
-                  background: i <= step ? "var(--color-accent-500)" : "var(--color-neutral-300)",
-                  boxShadow: i === step ? "0 0 0 4px var(--color-accent-100)" : "none",
+                  flex: 1, height: 3, borderRadius: 999,
+                  background: i <= step ? "var(--color-accent)" : "var(--color-neutral-300)",
                 }} />
               ))}
             </div>
           </div>
 
-          <div className="card elev-md ib-section ib-setup-card" key={step}>
+          {prefill === "failed" && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+              <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+              <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>
+                前回の設定を読み込めませんでした。お手数ですが、この画面で設定してください。
+              </div>
+            </div>
+          )}
+
+          {/* 求人 URL からの自動入力（任意）と、その下の手入力は別のカードに分ける。 */}
+          {step === 0 && (
+            <div className="card ib-section ib-setup-card">
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 500 }}>求人ページの URL から自動入力する</div>
+                  <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.7 }}>
+                    求人票や企業の採用ページの URL を読み込むと、企業名・業界・職種を自動で入力します。
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="input"
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://example.com/jobs/123"
+                    value={jobUrl}
+                    onChange={(e) => setJobUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void analyzeJobUrl(); } }}
+                    style={{ flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    onClick={() => void analyzeJobUrl()}
+                    disabled={analyzing || jobUrl.trim() === ""}
+                    style={{ flex: "none", gap: 8 }}
+                  >
+                    {analyzing ? (
+                      <>
+                        <span style={{ width: 13, height: 13, border: "2px solid var(--color-neutral-300)", borderTopColor: "var(--color-accent)", borderRadius: "50%", animation: "ib-spin .8s linear infinite" }} />
+                        <span>読み込み中</span>
+                      </>
+                    ) : (
+                      <span>読み込む</span>
+                    )}
+                  </button>
+                </div>
+
+                {analysis?.status === "failed" && (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+                    <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>
+                      {FAILURE_MESSAGE[analysis.reason]}
+                    </div>
+                  </div>
+                )}
+
+                {analyzed && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "14px 16px" }}>
+                    <div style={{ fontSize: 12.5, lineHeight: 1.7, color: "var(--ink-2)" }}>
+                      {PAGE_KIND_MESSAGE[analyzed.pageKind]}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {[
+                        // 企業名だけは、マスタと紐づいたときに印を添える（履歴の集計に効くため）。
+                        { label: "企業名", value: analyzed.companyName, linked: analyzed.company !== null },
+                        { label: "業界", value: analyzed.industryMajor && analyzed.industryMinor ? `${analyzed.industryMajor} ／ ${analyzed.industryMinor}` : null, linked: false },
+                        { label: "職種", value: analyzed.jobMajor && analyzed.jobMinor ? `${analyzed.jobMajor} ／ ${analyzed.jobMinor}` : null, linked: false },
+                      ].map((row) => (
+                        <div key={row.label} style={{ display: "flex", gap: 12, fontSize: 12.5 }}>
+                          <span style={{ flex: "none", width: 48, color: "var(--ink-3)" }}>{row.label}</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, color: row.value ? "var(--color-text)" : "var(--ink-3)" }}>
+                            <span style={{ minWidth: 0 }}>{row.value ?? "読み取れませんでした（手入力してください）"}</span>
+                            {row.linked && <CompanyLinkBadge />}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* マイページの志望設定からの一括入力（登録済みのときだけ出す）。
+              求人 URL からの自動入力と同じく、最初のステップにだけ置く一括入力の導線。
+              1 度で業界(step 0)と職種(step 1)の両方を埋めるので、以降のステップでは出さない。
+              埋まった値はフォームに出るので、何が入るかの説明は添えず 1 行に収めている。 */}
+          {step === 0 && profilePreference !== null && (
+            <div className="card ib-section ib-split" style={{ padding: "12px 16px" }}>
+              <div style={{ fontSize: 14, fontWeight: 500, minWidth: 0 }}>
+                マイページの志望設定から入力する
+              </div>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                onClick={applyProfilePreference}
+                style={{ flex: "none" }}
+              >
+                反映する
+              </button>
+            </div>
+          )}
+
+          {step === 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
+              <span style={{ flex: "none", fontSize: 12, color: "var(--ink-3)" }}>手動で入力する</span>
+              <div style={{ flex: 1, height: 1, background: "var(--color-divider)" }} />
+            </div>
+          )}
+
+          <div className="card ib-section ib-setup-card" key={step}>
             {step === 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>志望業界を教えてください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>大まかな分野から、当てはまるものを選んでください。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>志望業界を教えてください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>大まかな分野から、当てはまるものを選んでください。</p>
                 </div>
                 <Field label="業界（大分類）">
                   <select className="input" value={form.industryMajor} onChange={(e) => patch({ industryMajor: e.target.value, industryMinor: "" })}>
@@ -211,48 +641,54 @@ export default function SetupPage() {
                     {Object.keys(INDUSTRY).map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                {form.industryMajor && (
-                  <Field label="業界（小分類）">
-                    <select className="input" value={form.industryMinor} onChange={(e) => patch({ industryMinor: e.target.value })}>
-                      <option value="">選択してください</option>
-                      {(INDUSTRY[form.industryMajor] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </Field>
-                )}
+                <DependentSelectField
+                  label="業界（小分類）"
+                  value={form.industryMinor}
+                  options={INDUSTRY[form.industryMajor] ?? []}
+                  enabled={!!form.industryMajor}
+                  placeholder="選択してください"
+                  lockedMessage="先に業界の大分類を選んでください。"
+                  onChange={(v) => patch({ industryMinor: v })}
+                />
               </div>
             )}
 
             {step === 1 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>志望企業と職種を教えてください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>企業名は自由に入力できます。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>志望企業と職種を教えてください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>企業名は自由に入力できます。</p>
                 </div>
-                <Field label="志望企業名">
-                  <input className="input" type="text" placeholder="例：株式会社interview buddy" value={form.companyName} onChange={(e) => patch({ companyName: e.target.value })} />
-                </Field>
+                <CompanyCombobox
+                  label="志望企業名"
+                  value={form.companyName}
+                  companyId={form.companyId}
+                  placeholder="例：株式会社interview buddy"
+                  onChange={(companyName, companyId) => patch({ companyName, companyId })}
+                />
                 <Field label="職種（大分類）">
                   <select className="input" value={form.roleMajor} onChange={(e) => patch({ roleMajor: e.target.value, roleMinor: "" })}>
                     <option value="">選択してください</option>
                     {Object.keys(ROLE).map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </Field>
-                {form.roleMajor && (
-                  <Field label="職種（小分類）">
-                    <select className="input" value={form.roleMinor} onChange={(e) => patch({ roleMinor: e.target.value })}>
-                      <option value="">選択してください</option>
-                      {(ROLE[form.roleMajor] ?? []).map((m) => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                  </Field>
-                )}
+                <DependentSelectField
+                  label="職種（小分類）"
+                  value={form.roleMinor}
+                  options={ROLE[form.roleMajor] ?? []}
+                  enabled={!!form.roleMajor}
+                  placeholder="選択してください"
+                  lockedMessage="先に職種の大分類を選んでください。"
+                  onChange={(v) => patch({ roleMinor: v })}
+                />
               </div>
             )}
 
             {step === 2 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>選考フェーズを選んでください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>フェーズによって、面接の性格が変わります。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>選考フェーズを選んでください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>フェーズによって、面接の性格が変わります。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {PHASES.map((p) => <Choice key={p.key} label={p.label} desc={p.desc} active={form.phase === p.key} onSelect={() => patch({ phase: p.key })} />)}
@@ -263,19 +699,37 @@ export default function SetupPage() {
             {step === 3 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>面接の雰囲気を選んでください</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>AI がこのトーンを再現します。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>面接の雰囲気を選んでください</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>AI がこのトーンを再現します。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {INTERVIEWERS.map((t) => <Choice key={t.key} label={t.label} desc={t.desc} active={form.interviewerType === t.key} onSelect={() => patch({ interviewerType: t.key })} />)}
                 </div>
                 <div className="hr" style={{ margin: 0 }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>面接の長さ</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>普通は4つの大問をそれぞれ2回深掘りします。</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {INTERVIEW_LENGTH_OPTIONS.map((option) => (
+                      <Choice
+                        key={option.key}
+                        label={option.label}
+                        desc={option.desc}
+                        active={form.interviewLength === option.key}
+                        onSelect={() => patch({ interviewLength: option.key })}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="hr" style={{ margin: 0 }} />
                 <div className="ib-split">
                   <div>
-                    <div style={{ fontSize: 14.5, fontWeight: 600, fontFamily: "var(--font-jp)" }}>AI の音声で質問を読み上げる</div>
-                    <div style={{ fontSize: 12.5, color: muted(60), fontFamily: "var(--font-jp)" }}>オフにすると、テキストのみで進行します。</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 500 }}>AI の音声で質問を読み上げる</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>オフにすると、テキストのみで進行します。</div>
                     {voiceQuota !== null && (
-                      <div style={{ marginTop: 4, fontSize: 12, fontFamily: "var(--font-jp)", color: voiceExhausted ? "var(--color-accent-700)" : muted(55) }}>
+                      <div style={{ marginTop: 4, fontSize: 12, color: voiceExhausted ? "var(--ink-3)" : "var(--ink-3)" }}>
                         {voiceExhausted
                           ? `本日の音声利用枠（1日${voiceQuota.limit}回）は使い切りました。`
                           : `本日の残り音声セッション：${voiceQuota.remaining} / ${voiceQuota.limit} 回`}
@@ -284,41 +738,69 @@ export default function SetupPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => { if (!voiceExhausted) patch({ voiceOn: !form.voiceOn }); }}
-                    aria-pressed={form.voiceOn}
+                    onClick={() => { if (!voiceExhausted) patch({ voiceOn: !voiceOn }); }}
+                    aria-pressed={voiceOn}
                     disabled={voiceExhausted}
-                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: form.voiceOn ? "var(--color-accent-500)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                    style={{ all: "unset", cursor: voiceExhausted ? "not-allowed" : "pointer", opacity: voiceExhausted ? 0.4 : 1, width: 44, height: 26, borderRadius: 999, background: voiceOn ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
                   >
-                    <span style={{ position: "absolute", top: 2, left: form.voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-sm)", transition: "left .15s ease" }} />
+                    <span style={{ position: "absolute", top: 2, left: voiceOn ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
                   </button>
                 </div>
+                {/* 求人 URL を読み込めたときだけ、出題方法の選択肢を出す。 */}
+                {canGenerateQuestions && (
+                  <>
+                    <div className="hr" style={{ margin: 0 }} />
+                    <div className="ib-split">
+                      <div>
+                        <div style={{ fontSize: 14.5, fontWeight: 500 }}>読み込んだ求人の内容から質問をつくる</div>
+                        <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.7 }}>
+                          オフにすると、質問バンクから出題します。評価の4軸と質問数は、どちらでも変わりません。
+                        </div>
+                        {analyzed?.companyName && (
+                          <div style={{ marginTop: 4, fontSize: 12, color: "var(--ink-3)" }}>
+                            読み込み済み：{analyzed.companyName}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUseGeneratedQuestions((v) => !v)}
+                        aria-pressed={useGeneratedQuestions}
+                        style={{ all: "unset", cursor: "pointer", width: 44, height: 26, borderRadius: 999, background: useGeneratedQuestions ? "var(--color-accent)" : "var(--color-neutral-300)", position: "relative", flex: "none", transition: "background .15s ease" }}
+                      >
+                        <span style={{ position: "absolute", top: 2, left: useGeneratedQuestions ? 20 : 2, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "var(--shadow-knob)", transition: "left .15s ease" }} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             {step === 4 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 <div>
-                  <h2 style={{ margin: "0 0 4px", fontSize: 19, fontFamily: "var(--font-jp)" }}>内容を確認しましょう</h2>
-                  <p style={{ margin: 0, fontSize: 13, color: muted(60), fontFamily: "var(--font-jp)" }}>この内容で、面接練習を準備します。</p>
+                  <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>内容を確認しましょう</h2>
+                  <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>この内容で、面接練習を準備します。</p>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {summary.map((row, i) => (
-                    <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: i < summary.length - 1 ? "1px solid var(--color-divider)" : "none" }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: muted(55), fontFamily: "var(--font-jp)" }}>{row.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 600, fontFamily: "var(--font-jp)" }}>{row.value}</div>
+                    <div key={row.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 0", borderBottom: i < summary.length - 1 ? "1px solid var(--color-divider)" : "none" }}>
+                      {/* minWidth: 0 が無いと、値が長いときに左側が縮まず「編集」が
+                          1 文字幅まで潰れて縦書きのように見える。 */}
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{row.label}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 14, fontWeight: 500, minWidth: 0 }}>
+                          {row.value}
+                        </div>
                       </div>
-                      <button className="btn btn-ghost" onClick={() => setStep(row.goto)} style={{ fontSize: 12 }}>編集</button>
+                      <button className="btn btn-ghost" onClick={() => startEditing(row.goto)} style={{ flex: "none", fontSize: 12 }}>編集</button>
                     </div>
                   ))}
                 </div>
-                <div style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "12px 16px", fontSize: 12.5, lineHeight: 1.7, color: muted(65), fontFamily: "var(--font-jp)" }}>
-                  面接はいつでも途中で中断できます。ただし中断すると、それまでの回答は保存されません。
-                </div>
                 {startError && (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 16px", borderRadius: "var(--radius-md)", background: "var(--color-accent-100)" }}>
-                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-accent-700)" }}><LcAlert size={16} /></span>
-                    <div style={{ fontSize: 12.5, color: "var(--color-accent-800)", lineHeight: 1.7, fontFamily: "var(--font-jp)" }}>面接の準備を開始できませんでした。通信状況をご確認のうえ、もう一度お試しください。</div>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg)", border: "1px solid var(--color-danger-line)" }}>
+                    <span style={{ flex: "none", marginTop: 2, color: "var(--color-danger)" }}><LcAlert size={16} /></span>
+                    <div style={{ fontSize: 12.5, color: "var(--color-danger)", lineHeight: 1.7 }}>面接の準備を開始できませんでした。通信状況をご確認のうえ、もう一度お試しください。</div>
                   </div>
                 )}
                 <button className="btn btn-primary" onClick={startInterview} disabled={starting} style={{ width: "100%", justifyContent: "center", padding: 14, fontSize: 15, gap: 8 }}>
@@ -336,16 +818,40 @@ export default function SetupPage() {
           </div>
 
           {/* nav */}
-          {step < 4 && (
+          {step < CONFIRM_STEP && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <button className="btn btn-secondary" onClick={goBack} disabled={step === 0} style={step === 0 ? { opacity: 0, pointerEvents: "none" } : undefined}>戻る</button>
+              {/* 編集中は残りのステップを辿らせないため、戻る導線を出さない。 */}
+              <button
+                className="btn btn-secondary"
+                onClick={goBack}
+                disabled={step === 0 || editingFromConfirm}
+                style={step === 0 || editingFromConfirm ? { opacity: 0, pointerEvents: "none" } : undefined}
+              >
+                戻る
+              </button>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {showHint && <span style={{ fontSize: 12, color: "var(--color-accent-700)", fontFamily: "var(--font-jp)" }}>すべての項目を選択してください</span>}
-                <button className="btn btn-primary" onClick={goNext}>次へ</button>
+                {showHint && <span style={{ fontSize: 12, color: "var(--color-danger)" }}>すべての項目を選択してください</span>}
+                {editingFromConfirm ? (
+                  <button className="btn btn-primary" onClick={finishEditing}>編集を完了して確認に戻る</button>
+                ) : (
+                  <button className="btn btn-primary" onClick={goNext}>次へ</button>
+                )}
               </div>
             </div>
           )}
         </div>
     </main>
+  );
+}
+
+/**
+ * 「同じ設定でもう一度」からの遷移で useSearchParams を読むため、
+ * ページ本体を Suspense 境界の内側に置く。
+ */
+export default function SetupPage() {
+  return (
+    <Suspense fallback={<main className="ib-setup-main" />}>
+      <SetupWizard />
+    </Suspense>
   );
 }

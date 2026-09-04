@@ -1,0 +1,91 @@
+/**
+ * 業界・職種の分類マスタ（ユビキタス言語: Industry / Job）。
+ *
+ * 面接設定フォームの選択肢と、求人票からの抽出（LLM に渡す候補リスト）の
+ * 双方がこの定義を参照する単一の真実源。二重管理すると「抽出はできたが
+ * フォームの選択肢に存在しない値」が生まれるため、必ずここから引くこと。
+ */
+
+/** 大分類 → 小分類の一覧。 */
+export type Taxonomy = Record<string, readonly string[]>;
+
+export const INDUSTRY_TAXONOMY = {
+  "メーカー・商社": ["自動車", "電気・電子", "機械", "化学・素材", "食品・飲料", "医薬品・医療機器", "家具・インテリア", "衣料・アパレル", "総合商社", "専門商社"],
+  "金融・保険": ["銀行", "証券", "保険", "クレジットカード・信販", "リース", "資産運用・投資顧問"],
+  "IT・インターネット": ["SIer・システム開発", "Web・インターネットサービス", "ソフトウェア・SaaS", "通信・インフラ", "ハードウェア・半導体", "ゲーム", "セキュリティ", "AI・データ", "EC・広告"],
+  "流通・小売・サービス": ["百貨店", "スーパーマーケット", "コンビニエンスストア", "専門店（ファッション）", "専門店（電気・電子）", "通信販売・Eコマース", "ホテル・旅行", "飲食業", "理美容・エステ", "教育・研修"],
+  "建築・不動産": ["ゼネコン・建築", "ハウスメーカー", "設計・建築", "不動産開発", "不動産仲介・管理"],
+  メディカル: ["病院・クリニック", "製薬会社", "医療機器メーカー", "看護・介護施設", "医療関連サービス"],
+  "マスコミ・メディア": ["新聞", "テレビ", "ラジオ", "出版", "広告代理店", "インターネットメディア"],
+  "コンサルティング・士業": ["経営コンサルティング", "ITコンサルティング", "人事コンサルティング", "弁護士", "公認会計士", "税理士"],
+  "運輸・物流": ["航空", "鉄道", "海運", "陸運・運送", "物流・倉庫"],
+  エネルギー: ["電力", "ガス", "石油・石炭", "再生エネルギー"],
+  エンターテインメント: ["ゲーム・アミューズメント", "映画・映像", "音楽・音響", "スポーツ"],
+} as const satisfies Taxonomy;
+
+export const ROLE_TAXONOMY = {
+  技術系: ["ソフトウェアエンジニア", "システムエンジニア", "ネットワークエンジニア", "クラウドエンジニア", "データベースエンジニア", "セキュリティエンジニア", "モバイルアプリ開発者", "Webエンジニア", "フルスタックエンジニア", "DevOpsエンジニア", "MLエンジニア", "データサイエンティスト", "組み込みエンジニア", "その他エンジニア"],
+  事務系: ["総務", "人事", "経理", "財務", "法務", "広報", "経営企画", "マーケ", "営業企画"],
+  営業: ["法人営業", "個人営業", "海外営業", "技術営業", "インサイドセールス", "カスタマーサクセス"],
+  クリエイティブ: ["Webデザイナー", "グラフィックデザイナー", "UIデザイナー", "UXデザイナー", "イラストレーター", "ゲームデザイナー"],
+  コンサルティング: ["経営コンサル", "ITコンサル", "人事コンサル", "財務コンサル"],
+  医療: ["医師", "看護師", "薬剤師", "臨床検査技師", "理学療法士", "作業療法士"],
+  士業: ["弁護士", "公認会計士", "税理士", "司法書士", "行政書士", "社会保険労務士", "弁理士"],
+} as const satisfies Taxonomy;
+
+/** 大分類と小分類の組。フォームの 2 つの select に 1:1 で対応する。 */
+export type TaxonomyPair = { major: string; minor: string };
+
+/** 分類の区切り文字。LLM には `大分類/小分類` の 1 文字列として候補を渡す。 */
+const SEPARATOR = "/";
+
+/**
+ * 分類マスタを `大分類/小分類` の文字列一覧に平坦化する。
+ *
+ * LLM の構造化出力では、大分類と小分類を別項目にすると組み合わせが不整合に
+ * なりうる（例: 業界「金融・保険」× 小分類「ゲーム」）。1 つの enum として
+ * 渡し、組み合わせごと選ばせることで不整合を型で排除する。
+ */
+export function toTaxonomyPairStrings(taxonomy: Taxonomy): string[] {
+  return Object.entries(taxonomy).flatMap(([major, minors]) =>
+    minors.map((minor) => `${major}${SEPARATOR}${minor}`),
+  );
+}
+
+/**
+ * `大分類/小分類` 文字列をマスタと照合して組に戻す。
+ * マスタに存在しない組み合わせなら null（LLM が候補外を返した場合の防御）。
+ */
+export function parseTaxonomyPair(
+  taxonomy: Taxonomy,
+  value: string | null | undefined,
+): TaxonomyPair | null {
+  if (!value) {
+    return null;
+  }
+  const separatorIndex = value.indexOf(SEPARATOR);
+  if (separatorIndex < 0) {
+    return null;
+  }
+  const major = value.slice(0, separatorIndex);
+  const minor = value.slice(separatorIndex + SEPARATOR.length);
+  return taxonomy[major]?.includes(minor) ? { major, minor } : null;
+}
+
+/**
+ * 大分類・小分類の 2 値をマスタと照合して組に戻す。
+ * どちらかが空、または組み合わせがマスタに無ければ null。
+ *
+ * 大小が別項目で入力される経路（プロフィールの志望設定など）の検証はここを通す。
+ * `parseTaxonomyPair` は `大分類/小分類` の 1 文字列（LLM の構造化出力）向け。
+ */
+export function toTaxonomyPair(
+  taxonomy: Taxonomy,
+  major: string | null | undefined,
+  minor: string | null | undefined,
+): TaxonomyPair | null {
+  if (!major || !minor) {
+    return null;
+  }
+  return taxonomy[major]?.includes(minor) ? { major, minor } : null;
+}

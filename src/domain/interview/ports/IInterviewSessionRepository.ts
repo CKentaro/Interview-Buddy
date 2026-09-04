@@ -1,5 +1,6 @@
 import type { Answer } from "../model/Answer.entity";
 import type { InterviewSession } from "../model/InterviewSession.entity";
+import type { InterviewLength } from "../model/InterviewLength.vo";
 import type { EvaluationAxis } from "../model/EvaluationAxis.vo";
 import type { Question } from "../model/Question.entity";
 import type { QuestionType } from "../model/QuestionType.vo";
@@ -22,6 +23,8 @@ export type SessionSummary = {
   startedAt: Date;
   endedAt: Date | null;
   companyName: string | null;
+  /** 企業マスタと紐づいていれば ID。履歴を企業ごとにまとめるのに使う。 */
+  companyId: string | null;
   industryMajor: string | null;
   industryMinor: string | null;
   jobMajor: string | null;
@@ -46,6 +49,11 @@ export type InterviewSessionDetail = {
   jobMinor: string | null;
   selectionStage: string | null;
   interviewerType: string | null;
+  /** 企業マスタと紐づいていれば ID。自由入力の企業では null。 */
+  companyId: string | null;
+  /** 出題構成（面接の長さ）。同じ設定でやり直す導線の復元に使う。 */
+  interviewLength: InterviewLength;
+  voiceEnabled: boolean;
   /** displayOrder 昇順。MAIN / FOLLOW_UP を含む。 */
   questions: SessionQuestionWithAnswer[];
 };
@@ -54,6 +62,8 @@ export type InterviewSessionDetail = {
 export type CreateSessionInput = {
   userId: string;
   companyName?: string;
+  /** 企業マスタの ID。候補から選ばれたときだけ渡す。 */
+  companyId?: string;
   industryMajor?: string;
   industryMinor?: string;
   jobMajor?: string;
@@ -62,6 +72,8 @@ export type CreateSessionInput = {
   interviewerType?: string;
   /** AI 音声読み上げ(TTS)を使う面接か（TTS ゲートの判定に永続化する）。 */
   voiceEnabled?: boolean;
+  /** 本質問数と深掘り上限を決める固定の長さ設定。 */
+  interviewLength: InterviewLength;
   selectedQuestions: SelectedQuestion[];
 };
 

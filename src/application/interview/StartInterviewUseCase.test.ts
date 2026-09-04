@@ -1,17 +1,35 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { Company } from "@/domain/company/model/Company.entity";
+import type { ICompanyRepository } from "@/domain/company/ports/ICompanyRepository";
 
 import { EvaluationAxis } from "@/domain/interview/model/EvaluationAxis.vo";
 import type { Answer } from "@/domain/interview/model/Answer.entity";
 import type { Question } from "@/domain/interview/model/Question.entity";
 import type { BankAxis, QuestionBank } from "@/domain/interview/model/QuestionBank.vo";
 import { QuestionType } from "@/domain/interview/model/QuestionType.vo";
+import { SessionStatus } from "@/domain/interview/model/SessionStatus.vo";
+import { InterviewLength } from "@/domain/interview/model/InterviewLength.vo";
 import type {
   CreateSessionInput,
   CreateSessionResult,
   IInterviewSessionRepository,
+  InterviewSessionDetail,
   QuestionAnswerPair,
   SaveAnswerAndCreateFollowUpQuestionResult,
 } from "@/domain/interview/ports/IInterviewSessionRepository";
+import type { JobPostingContext } from "@/domain/interview/model/JobPosting.vo";
+import {
+  EmploymentKind,
+  JobPostingPageKind,
+} from "@/domain/interview/model/JobPosting.vo";
+import type { SelectedQuestion } from "@/domain/interview/model/SelectedQuestion.vo";
+import { MainQuestionSource } from "@/domain/interview/model/SelectedQuestion.vo";
+import { MAIN_QUESTION_AXIS_PLAN } from "@/domain/interview/model/mainQuestionPlan";
+import type {
+  IMainQuestionGenerationService,
+  MainQuestionGenerationContext,
+} from "@/domain/interview/ports/IMainQuestionGenerationService";
 import type { IOpeningSpeechService } from "@/domain/interview/ports/IOpeningSpeechService";
 import type { IQuestionBankProvider } from "@/domain/interview/ports/IQuestionBankProvider";
 import { StartInterviewUseCase } from "./StartInterviewUseCase";
@@ -68,6 +86,9 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
         userId: input.userId,
         startedAt: new Date("2026-07-07T00:00:00.000Z"),
         endedAt: null,
+        status: SessionStatus.IN_PROGRESS,
+        voiceEnabled: input.voiceEnabled ?? false,
+        interviewLength: input.interviewLength,
         companyName: input.companyName ?? null,
         industryMajor: input.industryMajor ?? null,
         industryMinor: input.industryMinor ?? null,
@@ -149,8 +170,16 @@ class FakeInterviewSessionRepository implements IInterviewSessionRepository {
     throw new Error("Not implemented");
   }
 
-  async findDetailById(): Promise<null> {
-    throw new Error("Not implemented");
+  /** findDetailById が返す過去セッション（大問の引き継ぎ元）。既定は「無し」。 */
+  detail: InterviewSessionDetail | null = null;
+  findDetailByIdCalls: Array<{ userId: string; sessionId: string }> = [];
+
+  async findDetailById(
+    userId: string,
+    sessionId: string,
+  ): Promise<InterviewSessionDetail | null> {
+    this.findDetailByIdCalls.push({ userId, sessionId });
+    return this.detail;
   }
 
   async findCompletedByUser(): Promise<never[]> {
@@ -169,8 +198,41 @@ class FakeOpeningSpeechService implements IOpeningSpeechService {
   }
 }
 
+const jobPosting: JobPostingContext = {
+  pageKind: JobPostingPageKind.SINGLE_JOB_POSTING,
+  usableAsContext: true,
+  companyName: "株式会社テスト",
+  industry: { major: "IT・インターネット", minor: "ソフトウェア・SaaS" },
+  job: { major: "技術系", minor: "Webエンジニア" },
+  employmentKind: EmploymentKind.NEW_GRADUATE,
+  businessSummary: "テスト事業",
+  jobSummary: "テスト職務",
+  keyPoints: ["特徴1"],
+};
+
+class FakeMainQuestionGenerationService implements IMainQuestionGenerationService {
+  receivedContext: MainQuestionGenerationContext | null = null;
+  constructor(private readonly behavior: "success" | "failure") {}
+
+  async generate(
+    context: MainQuestionGenerationContext,
+  ): Promise<SelectedQuestion[]> {
+    this.receivedContext = context;
+    if (this.behavior === "failure") {
+      throw new Error("generation failed");
+    }
+    return context.plan.map((entry) => ({
+      bankId: null,
+      source: MainQuestionSource.GENERATED,
+      displayText: `求人由来の質問 ${entry.displayOrder}`,
+      axis: entry.axis,
+      displayOrder: entry.displayOrder,
+    }));
+  }
+}
+
 describe("StartInterviewUseCase", () => {
-  it("質問バンクから本質問5問を選定し、セッション作成へ渡す", async () => {
+  it("未指定なら普通として質問バンクから本質問4問を選定し、セッション作成へ渡す", async () => {
     const repository = new FakeInterviewSessionRepository();
     const useCase = new StartInterviewUseCase(
       new FakeQuestionBankProvider(),
@@ -183,17 +245,41 @@ describe("StartInterviewUseCase", () => {
       voiceEnabled: false,
     });
 
-    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
     expect(repository.createSessionInput?.selectedQuestions.map((q) => q.displayOrder)).toEqual([
-      1, 2, 3, 4, 5,
+      1, 2, 3, 4,
     ]);
     expect(result.session.id).toBe("session-1");
     expect(result.firstQuestion.id).toBe("question-1");
     expect(result.speechText).toBe(result.firstQuestion.content);
+    expect(result.session.interviewLength).toBe(InterviewLength.STANDARD);
+    expect(result.totalQuestionCount).toBe(12);
   });
 
+  it.each([
+    [InterviewLength.SHORT, 4, 8],
+    [InterviewLength.LONG, 6, 18],
+  ] as const)(
+    "%s では本質問数と総質問数を長さポリシーから決める",
+    async (interviewLength, mainQuestionCount, totalQuestionCount) => {
+      const repository = new FakeInterviewSessionRepository();
+      const useCase = new StartInterviewUseCase(
+        new FakeQuestionBankProvider(),
+        repository,
+      );
+
+      const result = await useCase.execute({ userId: "user-1", interviewLength });
+
+      expect(repository.createSessionInput?.interviewLength).toBe(interviewLength);
+      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(
+        mainQuestionCount,
+      );
+      expect(result.totalQuestionCount).toBe(totalQuestionCount);
+    },
+  );
+
   it.each(["friendly", "neutral", "strict"] as const)(
-    "%sでも本質問数は共通の5問になる",
+    "%sでも普通の本質問数は共通の4問になる",
     async (interviewerType) => {
       const repository = new FakeInterviewSessionRepository();
       const useCase = new StartInterviewUseCase(
@@ -206,7 +292,7 @@ describe("StartInterviewUseCase", () => {
       expect(repository.createSessionInput?.interviewerType).toBe(
         interviewerType,
       );
-      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(5);
+      expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
     },
   );
 
@@ -290,5 +376,325 @@ describe("StartInterviewUseCase", () => {
 
     expect(result.voiceEnabled).toBe(false);
     expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(0);
+  });
+
+  it("求人由来の生成を要求すると、生成された本質問でセッションを作る", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(true);
+    expect(generationService.receivedContext?.jobPosting).toBe(jobPosting);
+    // 軸構成はバンク抽選と同じ計画を渡す（フィードバックの 4 軸集計が前提にしている）。
+    expect(generationService.receivedContext?.plan).toBe(MAIN_QUESTION_AXIS_PLAN);
+    expect(repository.createSessionInput?.selectedQuestions.map((q) => q.displayText))
+      .toEqual([1, 2, 3, 4].map((n) => `求人由来の質問 ${n}`));
+  });
+
+  it("生成に失敗してもバンク抽選へ落として面接を開始できる", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      new FakeMainQuestionGenerationService("failure"),
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(repository.createSessionInput?.selectedQuestions).toHaveLength(4);
+    expect(
+      repository.createSessionInput?.selectedQuestions.every(
+        (q) => q.source === MainQuestionSource.BANK,
+      ),
+    ).toBe(true);
+  });
+
+  // 解析結果はクライアント経由で戻るため、usableAsContext を書き換えた
+  // リクエストでも生成へ進ませない（ページ種別と突き合わせて弾く）。
+  it("ページ種別と矛盾する解析結果（エラーページなのに使える）では生成を試みない", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting: {
+        ...jobPosting,
+        pageKind: JobPostingPageKind.ERROR_OR_LOGIN,
+        usableAsContext: true,
+      },
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+  });
+
+  it("文脈として使えない求人（一覧ページ等）では生成を試みない", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting: { ...jobPosting, usableAsContext: false },
+      generateQuestionsFromJobPosting: true,
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+  });
+
+  it("生成を要求しなければバンク抽選を使う", async () => {
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      new FakeInterviewSessionRepository(),
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({ userId: "user-1", jobPosting });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+  });
+});
+
+/** 前回セッションの詳細（大問だけが計画どおりに並んだもの）。 */
+function previousSessionDetail(
+  plan: readonly { displayOrder: number; axis: EvaluationAxis }[],
+): InterviewSessionDetail {
+  return {
+    id: "previous-session",
+    startedAt: new Date("2026-07-01T00:00:00.000Z"),
+    endedAt: new Date("2026-07-01T00:30:00.000Z"),
+    companyName: "テスト社",
+    industryMajor: null,
+    industryMinor: null,
+    jobMajor: null,
+    jobMinor: null,
+    selectionStage: null,
+    interviewerType: null,
+    companyId: null,
+    interviewLength: InterviewLength.STANDARD,
+    voiceEnabled: false,
+    questions: [
+      ...plan.map((entry) => ({
+        id: `main-${entry.displayOrder}`,
+        type: QuestionType.MAIN,
+        content: `前回の大問 ${entry.displayOrder}`,
+        displayOrder: entry.displayOrder,
+        primaryAxis: entry.axis,
+        parentQuestionId: null,
+        answer: { id: `a-${entry.displayOrder}`, content: "回答" },
+      })),
+      // 深掘りは引き継がない（回答次第で変わるため）。混ざっていても無視されること。
+      {
+        id: "follow-1",
+        type: QuestionType.FOLLOW_UP,
+        content: "前回の深掘り",
+        displayOrder: plan.length + 1,
+        primaryAxis: plan[0]!.axis,
+        parentQuestionId: "main-1",
+        answer: null,
+      },
+    ],
+  };
+}
+
+describe("StartInterviewUseCase（大問の引き継ぎ）", () => {
+  it("前回セッションを指定すると、大問は前回と同じ質問文で出題する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    // 所有チェック込みの取得を、本人の ID で呼んでいること。
+    expect(repository.findDetailByIdCalls).toEqual([
+      { userId: "user-1", sessionId: "previous-session" },
+    ]);
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected.map((question) => question.displayText)).toEqual(
+      MAIN_QUESTION_AXIS_PLAN.map((entry) => `前回の大問 ${entry.displayOrder}`),
+    );
+    expect(selected.every((question) => question.source === MainQuestionSource.REUSED)).toBe(true);
+  });
+
+  it("面接の長さを変えて軸構成が変われば、引き継がずバンク抽選に落とす", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      interviewLength: InterviewLength.LONG,
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected).toHaveLength(6);
+    expect(selected.every((question) => question.source === MainQuestionSource.BANK)).toBe(true);
+  });
+
+  it("他人・削除済みのセッション（詳細が取得できない）なら引き継がない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = null;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      reuseQuestionsFromSessionId: "someone-elses-session",
+    });
+
+    const selected = repository.createSessionInput?.selectedQuestions ?? [];
+    expect(selected).toHaveLength(4);
+    expect(selected.every((question) => question.source === MainQuestionSource.BANK)).toBe(true);
+  });
+
+  it("引き継ぎ指定があるときは求人由来の生成より引き継ぎを優先する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.detail = previousSessionDetail(MAIN_QUESTION_AXIS_PLAN);
+    const generationService = new FakeMainQuestionGenerationService("success");
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      generationService,
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      jobPosting,
+      generateQuestionsFromJobPosting: true,
+      reuseQuestionsFromSessionId: "previous-session",
+    });
+
+    expect(result.questionsGeneratedFromJobPosting).toBe(false);
+    expect(generationService.receivedContext).toBeNull();
+    expect(
+      repository.createSessionInput?.selectedQuestions.map((q) => q.displayText),
+    ).toEqual(MAIN_QUESTION_AXIS_PLAN.map((entry) => `前回の大問 ${entry.displayOrder}`));
+  });
+});
+
+describe("StartInterviewUseCase（企業マスタの紐づけ）", () => {
+  const company: Company = {
+    id: "company-1",
+    edinetCode: "E00001",
+    corporateNumber: null,
+    name: "テスト株式会社",
+    nameKana: null,
+    securitiesCode: null,
+    isListed: false,
+    industryLabel: null,
+    capitalMillionYen: null,
+  };
+
+  function createCompanyRepository(found: Company | null): ICompanyRepository {
+    return {
+      searchByNormalizedName: vi.fn(),
+      findByNormalizedName: vi.fn(),
+      findById: vi.fn().mockResolvedValue(found),
+    };
+  }
+
+  it("実在する companyId はそのまま保存する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(company),
+    );
+
+    await useCase.execute({ userId: "user-1", companyId: "company-1" });
+
+    expect(repository.createSessionInput?.companyId).toBe("company-1");
+  });
+
+  it("実在しない companyId は落として、企業名だけで面接を開始する", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    repository.voiceQuotaConsumable = true;
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(null),
+    );
+
+    await useCase.execute({
+      userId: "user-1",
+      companyName: "テスト株式会社",
+      companyId: "does-not-exist",
+      voiceEnabled: true,
+    });
+
+    // 外部キー違反で落とさず、紐づけだけを外して面接は成立させる。
+    expect(repository.createSessionInput?.companyId).toBeUndefined();
+    expect(repository.createSessionInput?.companyName).toBe("テスト株式会社");
+  });
+
+  it("実在しない companyId でも音声枠を無駄に消費しない", async () => {
+    const repository = new FakeInterviewSessionRepository();
+    const useCase = new StartInterviewUseCase(
+      new FakeQuestionBankProvider(),
+      repository,
+      undefined,
+      undefined,
+      createCompanyRepository(null),
+    );
+
+    const result = await useCase.execute({
+      userId: "user-1",
+      companyId: "does-not-exist",
+      voiceEnabled: true,
+    });
+
+    // 枠は消費されるが、その分ちゃんと音声ありのセッションが作られている
+    // （検証で弾いてセッションだけ作られない、という状態にならないこと）。
+    expect(repository.tryConsumeVoiceQuotaCalls).toHaveLength(1);
+    expect(result.voiceEnabled).toBe(true);
+    expect(repository.createSessionInput?.voiceEnabled).toBe(true);
   });
 });

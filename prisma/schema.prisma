@@ -26,6 +26,20 @@ enum QuestionType {
   FOLLOW_UP // 深掘り質問
 }
 
+// 面接セッションの進行状態
+enum SessionStatus {
+  IN_PROGRESS // 面接中
+  PAUSED // 中断中（再開可能）
+  COMPLETED // 完了済み
+}
+
+// 面接の固定質問構成
+enum InterviewLength {
+  SHORT
+  STANDARD
+  LONG
+}
+
 // ── Auth.js (next-auth v5) が必要とするテーブル ──────────────────────────────
 
 model User {
@@ -34,6 +48,19 @@ model User {
   email         String    @unique
   emailVerified DateTime? // Auth.js: メール確認日時
   image         String? // Auth.js: プロフィール画像 URL
+
+  // 志望設定（初回オンボーディングで入力し、マイページで編集する）。
+  // すべて任意（スキップ可）で、値は careerTaxonomy の大分類 / 小分類。
+  // 面接設定画面の「マイページの設定から入力」の初期値として使う。
+  industryMajor String?
+  industryMinor String?
+  jobMajor      String?
+  jobMinor      String?
+
+  // オンボーディング（初回のプロフィール確認）を終えた日時。
+  // null の間だけ /onboarding へ誘導する。スキップした場合も記録するので、
+  // 「何も入力しなかった人」に毎回同じ画面を出すことはない。
+  onboardedAt DateTime?
 
   // Auth.js リレーション
   accounts Account[]
@@ -81,14 +108,52 @@ model VerificationToken {
 
 // ── アプリ固有モデル ───────────────────────────────────────────────────────────
 
+// 企業マスタ。出典は EDINET コードリスト（金融庁）で、有価証券報告書の提出会社
+// （上場企業＋主要な未上場企業）を収録する。日本の全法人ではないため、マスタに
+// 無い企業は InterviewSession.companyName の自由入力だけで練習できるようにしてある。
+// 投入・更新は prisma/seed.ts（edinetCode で upsert）が行い、アプリからは書き換えない。
+model Company {
+  id String @id @default(cuid())
+
+  // 取り込みの一意キー。手動追加した企業では null になりうる。
+  edinetCode String? @unique
+  // 法人番号(13桁)。商号変更などで複数の EDINET コードが同じ番号を持つため一意にしない。
+  // 日本の法人を一意に指す公的な番号で、他データとの突き合わせの入口になる。
+  // 現状のアプリのクエリでは未使用（索引は将来の名寄せ用）。
+  corporateNumber String?
+  name            String
+  nameKana        String?
+  // 正規化した検索キー（normalizeCompanyName の結果）。部分一致検索はこの列で行う。
+  searchKey       String
+  // 4桁の証券コード。非上場なら null。
+  securitiesCode String?
+  isListed       Boolean @default(false)
+  industryLabel  String?
+  // 資本金(百万円)。候補の並び順で企業の規模を測るためだけに使う（表示はしない）。
+  capitalMillionYen Int?
+
+  interviewSessions InterviewSession[]
+
+  // 現在の収録件数(約7千件)では単純な部分一致で足りる。全法人へ広げる場合は
+  // pg_trgm + GIN インデックスの追加を検討すること。
+  @@index([searchKey])
+  @@index([corporateNumber])
+}
+
 model InterviewSession {
-  id              String     @id @default(cuid())
-  startedAt       DateTime   @default(now())
+  id              String        @id @default(cuid())
+  startedAt       DateTime      @default(now())
   endedAt         DateTime?
+  status          SessionStatus @default(IN_PROGRESS)
   // AI 音声読み上げ(TTS)を使う面接か。1 ユーザー 1 日 1 セッションのレート制限は
   // この列（voiceEnabled=true かつ本日開始のセッション数）で判定する。
-  voiceEnabled    Boolean    @default(false)
+  voiceEnabled    Boolean         @default(false)
+  interviewLength InterviewLength @default(STANDARD)
+  // 企業名は常に文字列で保持する（マスタ外の企業でも練習できるようにするため）。
+  // companyId はマスタと紐づいたときだけ入る。企業ごとの集計にはこちらを使う。
   companyName     String?
+  companyId       String?
+  company         Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
   industryMajor   String?
   industryMinor   String?
   jobMajor        String?
@@ -96,9 +161,12 @@ model InterviewSession {
   selectionStage  String?
   interviewerType String?
   userId          String
-  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   questions       Question[]
   feedback        Feedback?
+
+  @@index([userId, status, startedAt])
+  @@index([userId, companyId])
 }
 
 model Question {

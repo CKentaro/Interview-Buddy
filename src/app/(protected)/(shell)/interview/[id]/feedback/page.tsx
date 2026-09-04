@@ -16,7 +16,8 @@ export default async function FeedbackPage({
 
       <section className="ib-section ib-actions" style={{ paddingTop: 2 }}>
         <Link href="/home" className="btn btn-secondary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>ホームに戻る</Link>
-        <Link href="/interview/setup" className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>もう一度練習する</Link>
+        {/* from を渡すと、設定画面がこのセッションの設定を復元して確認ステップから始まる。 */}
+        <Link href={`/interview/setup?from=${id}`} className="btn btn-primary" style={{ flex: 1, justifyContent: "center", padding: 12 }}>同じ設定でもう一度練習する</Link>
       </section>
     </main>
   );
