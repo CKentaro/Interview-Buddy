@@ -77,6 +77,9 @@ export function LcLink({ size = 14 }: { size?: number }) {
 export function LcClose({ size = 20 }: { size?: number }) {
   return <Lucide size={size}><line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" /></Lucide>;
 }
+export function LcHelpCircle({ size = 18 }: { size?: number }) {
+  return <Lucide size={size}><circle cx="12" cy="12" r="9" /><path d="M9.7 9a2.4 2.4 0 1 1 3.5 2.1c-.8.4-1.2.9-1.2 1.9" /><line x1="12" y1="16.5" x2="12" y2="16.51" /></Lucide>;
+}
 /* Google の G マークをここに置いてはいけない。ブランディング ガイドラインが自作・改変・
    単色化を禁じているため、公式アセットから切り出した public/google-g.svg を
    <img> で読み込むこと。→ .btn-google（globals.css） */
