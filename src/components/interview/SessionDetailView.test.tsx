@@ -28,6 +28,7 @@ function detailWith(feedback: FeedbackResponse): SessionDetailResponse {
     jobMinor: null,
     selectionStage: "first",
     interviewerType: null,
+    companyId: null,
     interviewLength: InterviewLength.STANDARD,
     voiceEnabled: false,
     questions: [],

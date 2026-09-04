@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyLinkBadge } from "@/components/company/CompanyLinkBadge";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useSession } from "next-auth/react";
 import type { SessionDetailResponse, QuestionWithAnswer } from "@/app/api/types";
@@ -454,7 +455,10 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
       {/* overview */}
       <section className="ib-section" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 22 }}>{detail.companyName ?? "面接"}　{stageLabel(detail.selectionStage)}</h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 22, minWidth: 0 }}>{detail.companyName ?? "面接"}　{stageLabel(detail.selectionStage)}</h2>
+            {detail.companyId !== null && <CompanyLinkBadge size={14} />}
+          </div>
           <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{dateLabel}</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

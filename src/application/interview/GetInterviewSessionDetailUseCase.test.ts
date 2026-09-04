@@ -27,6 +27,7 @@ function detail(overrides: Partial<InterviewSessionDetail> = {}): InterviewSessi
     jobMinor: null,
     selectionStage: null,
     interviewerType: null,
+    companyId: null,
     interviewLength: InterviewLength.STANDARD,
     voiceEnabled: false,
     questions: [

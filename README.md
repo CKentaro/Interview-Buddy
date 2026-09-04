@@ -219,7 +219,16 @@ pnpm db:migrate
 と表示されれば成功です。今後 `prisma/schema.prisma` にモデルを追加していくと、ここでマイグレーションが
 作成・適用されるようになります。
 
-### C-7. 開発サーバーを起動
+### C-7. 企業マスタを投入
+
+```sh
+pnpm db:seed
+```
+
+面接設定の企業名を候補から選べるようにするためのデータ（約 7,200 社）を投入します。
+何度実行しても同じ結果になります。
+
+### C-8. 開発サーバーを起動
 
 ```sh
 pnpm dev
@@ -242,7 +251,21 @@ pnpm dev
 | `pnpm db:down` | PostgreSQL コンテナを停止 |
 | `pnpm db:reset` | コンテナとボリュームを破棄して再作成 (データ消去注意) |
 | `pnpm db:migrate` | Prisma マイグレーションを開発モードで実行 |
+| `pnpm db:seed` | 企業マスタ (`prisma/seed/companies.json`) を投入 |
+| `pnpm companies:fetch` | 企業マスタのデータを EDINET から再取得して JSON を作り直す |
 | `pnpm db:studio` | Prisma Studio (GUI) を起動 |
+
+---
+
+## 収録データの出典
+
+面接設定で選べる企業データは、金融庁 [EDINET](https://disclosure2.edinet-fsa.go.jp/) が
+公開している **EDINET コードリスト** をもとにしています。有価証券報告書の提出会社
+（上場企業と主要な未上場企業）が対象で、日本の全法人を網羅するものではありません。
+一覧に無い企業は、企業名を直接入力してそのまま面接練習を始められます。
+
+データを最新化する場合は `pnpm companies:fetch` で再取得し、生成された
+`prisma/seed/companies.json` をコミットしたうえで `pnpm db:seed` を実行してください。
 
 ---
 

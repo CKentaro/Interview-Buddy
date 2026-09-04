@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CompanyLinkBadge } from "@/components/company/CompanyLinkBadge";
 import { interviewerTypeLabel } from "@/domain/interview/model/InterviewerType.vo";
 import type { SessionListItemResponse } from "@/app/api/types";
 
@@ -49,6 +50,9 @@ export function SessionCard({ s, compact = false }: { s: SessionListItemResponse
       <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 14.5, fontWeight: 500, letterSpacing: "-0.01em" }}>{s.companyName ?? "（企業名未入力）"}</span>
+          {/* 企業ごとの表示でまとまる練習かどうかを、一覧の時点で分かるようにする。
+              ホームの直近一覧（compact）では情報を絞るため出さない。 */}
+          {!compact && s.companyId !== null && <CompanyLinkBadge size={12} />}
           <span style={{ fontSize: 12, color: "var(--ink-3)" }}>{roleLabel(s)}</span>
         </div>
         <div className="num" style={{ fontSize: 11.5, color: "var(--ink-3)" }}>{metaLine(s, compact)}</div>

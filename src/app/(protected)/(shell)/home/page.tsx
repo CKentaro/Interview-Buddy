@@ -12,6 +12,7 @@ import type {
   SessionListResponse,
 } from "@/app/api/types";
 import { SessionCard } from "@/components/interview/SessionCard";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LcMessage, LcInbox } from "@/components/ui/icons";
 
 
@@ -274,58 +275,19 @@ export default function HomePage() {
         </section>
 
         {deleteTarget && (
-          <div
-            className="dialog-backdrop"
-            onClick={() => !deleting && setDeleteTargetId(null)}
+          <ConfirmDialog
+            title="中断中の面接を削除しますか？"
+            confirmLabel="削除する"
+            confirmingLabel="削除しています…"
+            busy={deleting}
+            error={deleteError}
+            onConfirm={() => void handleDelete()}
+            onCancel={() => setDeleteTargetId(null)}
           >
-            <div
-              className="dialog"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="ib-delete-session-title"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="dialog-title" id="ib-delete-session-title">
-                中断中の面接を削除しますか？
-              </div>
-              <div className="dialog-body">
-                「{deleteTarget.companyName ?? "（企業名未入力）"}」の中断中の面接を削除します。
-                送信済みの回答{deleteTarget.answeredQuestionCount}問も一緒に削除され、
-                この面接は再開できなくなります。この操作は取り消せません。
-              </div>
-              {deleteError && (
-                <p
-                  role="alert"
-                  style={{
-                    margin: 0,
-                    fontSize: 12.5,
-                    lineHeight: 1.7,
-                    color: "var(--color-danger)",
-                  }}
-                >
-                  {deleteError}
-                </p>
-              )}
-              <div className="dialog-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setDeleteTargetId(null)}
-                  disabled={deleting}
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={() => void handleDelete()}
-                  disabled={deleting}
-                >
-                  {deleting ? "削除しています…" : "削除する"}
-                </button>
-              </div>
-            </div>
-          </div>
+            「{deleteTarget.companyName ?? "（企業名未入力）"}」の中断中の面接を削除します。
+            送信済みの回答{deleteTarget.answeredQuestionCount}問も一緒に削除され、
+            この面接は再開できなくなります。この操作は取り消せません。
+          </ConfirmDialog>
         )}
     </main>
   );

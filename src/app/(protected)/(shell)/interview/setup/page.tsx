@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { CompanyCombobox } from "@/components/company/CompanyCombobox";
+import { CompanyLinkBadge } from "@/components/company/CompanyLinkBadge";
 import { DependentSelectField } from "@/components/ui/DependentSelectField";
 import { LcArrowLeft, LcAlert } from "@/components/ui/icons";
 import { INTERVIEWER_TYPE_LABEL } from "@/domain/interview/model/InterviewerType.vo";
@@ -72,7 +74,9 @@ const CONFIRM_STEP = STEP_TOTAL - 1;
 
 type FormData = {
   industryMajor: string; industryMinor: string;
-  companyName: string; roleMajor: string; roleMinor: string;
+  /** 企業マスタと紐づいたときだけ ID が入る。自由入力なら null のまま。 */
+  companyName: string; companyId: string | null;
+  roleMajor: string; roleMinor: string;
   phase: string; interviewerType: string; voiceOn: boolean;
   interviewLength: InterviewLength;
 };
@@ -106,6 +110,7 @@ function isSameSettings(a: FormData, b: FormData, voiceExhausted: boolean): bool
     a.industryMajor === b.industryMajor &&
     a.industryMinor === b.industryMinor &&
     a.companyName.trim() === b.companyName.trim() &&
+    a.companyId === b.companyId &&
     a.roleMajor === b.roleMajor &&
     a.roleMinor === b.roleMinor &&
     a.phase === b.phase &&
@@ -173,7 +178,7 @@ function SetupWizard() {
   /** 復元直後のフォーム。ここから 1 項目でも変えたら大問の引き継ぎをやめる。 */
   const [restoredForm, setRestoredForm] = useState<FormData | null>(null);
   const [form, setForm] = useState<FormData>({
-    industryMajor: "", industryMinor: "", companyName: "",
+    industryMajor: "", industryMinor: "", companyName: "", companyId: null,
     roleMajor: "", roleMinor: "", phase: "", interviewerType: "", voiceOn: false,
     interviewLength: InterviewLength.STANDARD,
   });
@@ -197,6 +202,7 @@ function SetupWizard() {
           industryMajor: detail.industryMajor ?? "",
           industryMinor: detail.industryMinor ?? "",
           companyName: detail.companyName ?? "",
+          companyId: detail.companyId,
           roleMajor: detail.jobMajor ?? "",
           roleMinor: detail.jobMinor ?? "",
           phase: PHASES.find((p) => p.key === detail.selectionStage)?.key ?? "",
@@ -267,6 +273,12 @@ function SetupWizard() {
 
   const voiceExhausted = voiceQuota !== null && voiceQuota.remaining <= 0;
 
+  /* 実際に音声で開始するか。本日の枠が尽きていれば、設定の復元やトグルの値によらず必ず false。 */
+  const voiceOn = form.voiceOn && !voiceExhausted;
+  const analyzed = analysis?.status === "analyzed" ? analysis : null;
+  /** 求人由来の質問生成を選べるか（解析済みかつ材料が十分なときだけ）。 */
+  const canGenerateQuestions = analyzed?.usableAsContext === true;
+
   /*
    * 大問を前回と同じ質問で出題するか。
    * 前提は「復元した設定のまま始める」こと。確認画面の編集で 1 項目でも変えたら、
@@ -277,17 +289,16 @@ function SetupWizard() {
   const reusesMainQuestions = (() => {
     if (sourceMainAxes === null || restoredForm === null) return false;
     if (!isSameSettings(form, restoredForm, voiceExhausted)) return false;
+    // 求人由来の生成を明示的にオンにしているなら、そちらを優先する。
+    // 両方を送るとサーバーは引き継ぎを採り、生成は試されないまま
+    // 「生成に失敗した」という誤った通知がライブ画面に出てしまう。
+    if (canGenerateQuestions && useGeneratedQuestions) return false;
     const plan = getInterviewLengthPolicy(form.interviewLength).mainQuestionPlan;
     return (
       plan.length === sourceMainAxes.length &&
       plan.every((entry, i) => String(entry.axis) === sourceMainAxes[i])
     );
   })();
-  /* 実際に音声で開始するか。本日の枠が尽きていれば、設定の復元やトグルの値によらず必ず false。 */
-  const voiceOn = form.voiceOn && !voiceExhausted;
-  const analyzed = analysis?.status === "analyzed" ? analysis : null;
-  /** 求人由来の質問生成を選べるか（解析済みかつ材料が十分なときだけ）。 */
-  const canGenerateQuestions = analyzed?.usableAsContext === true;
 
   /**
    * 求人ページを解析し、埋められた項目だけフォームへ反映する。
@@ -311,6 +322,8 @@ function SetupWizard() {
         setForm((f) => ({
           ...f,
           companyName: result.companyName ?? f.companyName,
+          // 企業名を差し替えたら紐づけも張り直す（一致しなければ null に戻す）。
+          companyId: result.companyName ? result.company?.id ?? null : f.companyId,
           // 業界・職種は大小がそろって初めてフォームの選択として成立する。
           ...(result.industryMajor && result.industryMinor
             ? { industryMajor: result.industryMajor, industryMinor: result.industryMinor }
@@ -377,7 +390,8 @@ function SetupWizard() {
 
   const fillSample = () => setForm({
     industryMajor: "IT・インターネット", industryMinor: "Web・インターネットサービス",
-    companyName: "株式会社interview buddy", roleMajor: "技術系", roleMinor: "Webエンジニア",
+    companyName: "株式会社interview buddy", companyId: null,
+    roleMajor: "技術系", roleMinor: "Webエンジニア",
     phase: "second", interviewerType: "neutral", voiceOn: false,
     interviewLength: InterviewLength.STANDARD,
   });
@@ -390,6 +404,7 @@ function SetupWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companyName: form.companyName,
+          ...(form.companyId !== null ? { companyId: form.companyId } : {}),
           industryMajor: form.industryMajor,
           industryMinor: form.industryMinor,
           jobMajor: form.roleMajor,
@@ -439,9 +454,20 @@ function SetupWizard() {
   const lengthLabel = INTERVIEW_LENGTH_OPTIONS.find(
     (option) => option.key === form.interviewLength,
   )?.label ?? "普通・全12問";
-  const summary = [
+  const summary: { label: string; value: React.ReactNode; goto: number }[] = [
     { label: "志望業界", value: form.industryMajor ? `${form.industryMajor} ／ ${form.industryMinor}` : "未設定", goto: 0 },
-    { label: "志望企業・職種", value: `${form.companyName || "未設定"}${form.roleMajor ? `　・　${form.roleMajor} ／ ${form.roleMinor}` : ""}`, goto: 1 },
+    {
+      label: "志望企業・職種",
+      // 印は企業名の直後に置く（職種の後ろだと何に紐づいた印か分からない）。
+      value: (
+        <>
+          <span style={{ minWidth: 0 }}>{form.companyName || "未設定"}</span>
+          {form.companyId !== null && <CompanyLinkBadge />}
+          {form.roleMajor && <span>　・　{form.roleMajor} ／ {form.roleMinor}</span>}
+        </>
+      ),
+      goto: 1,
+    },
     { label: "選考フェーズ", value: phaseLabel, goto: 2 },
     { label: "面接の長さ", value: lengthLabel, goto: 3 },
     { label: "面接官タイプ・音声", value: `${typeLabel}　・　音声${voiceOn ? "あり" : "なし"}`, goto: 3 },
@@ -554,14 +580,16 @@ function SetupWizard() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {[
-                        { label: "企業名", value: analyzed.companyName },
-                        { label: "業界", value: analyzed.industryMajor && analyzed.industryMinor ? `${analyzed.industryMajor} ／ ${analyzed.industryMinor}` : null },
-                        { label: "職種", value: analyzed.jobMajor && analyzed.jobMinor ? `${analyzed.jobMajor} ／ ${analyzed.jobMinor}` : null },
+                        // 企業名だけは、マスタと紐づいたときに印を添える（履歴の集計に効くため）。
+                        { label: "企業名", value: analyzed.companyName, linked: analyzed.company !== null },
+                        { label: "業界", value: analyzed.industryMajor && analyzed.industryMinor ? `${analyzed.industryMajor} ／ ${analyzed.industryMinor}` : null, linked: false },
+                        { label: "職種", value: analyzed.jobMajor && analyzed.jobMinor ? `${analyzed.jobMajor} ／ ${analyzed.jobMinor}` : null, linked: false },
                       ].map((row) => (
                         <div key={row.label} style={{ display: "flex", gap: 12, fontSize: 12.5 }}>
                           <span style={{ flex: "none", width: 48, color: "var(--ink-3)" }}>{row.label}</span>
-                          <span style={{ color: row.value ? "var(--color-text)" : "var(--ink-3)" }}>
-                            {row.value ?? "読み取れませんでした（手入力してください）"}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0, color: row.value ? "var(--color-text)" : "var(--ink-3)" }}>
+                            <span style={{ minWidth: 0 }}>{row.value ?? "読み取れませんでした（手入力してください）"}</span>
+                            {row.linked && <CompanyLinkBadge />}
                           </span>
                         </div>
                       ))}
@@ -631,9 +659,13 @@ function SetupWizard() {
                   <h2 style={{ margin: "0 0 4px", fontSize: 19 }}>志望企業と職種を教えてください</h2>
                   <p style={{ margin: 0, fontSize: 13, color: "var(--ink-3)" }}>企業名は自由に入力できます。</p>
                 </div>
-                <Field label="志望企業名">
-                  <input className="input" type="text" placeholder="例：株式会社interview buddy" value={form.companyName} onChange={(e) => patch({ companyName: e.target.value })} />
-                </Field>
+                <CompanyCombobox
+                  label="志望企業名"
+                  value={form.companyName}
+                  companyId={form.companyId}
+                  placeholder="例：株式会社interview buddy"
+                  onChange={(companyName, companyId) => patch({ companyName, companyId })}
+                />
                 <Field label="職種（大分類）">
                   <select className="input" value={form.roleMajor} onChange={(e) => patch({ roleMajor: e.target.value, roleMinor: "" })}>
                     <option value="">選択してください</option>
@@ -757,7 +789,9 @@ function SetupWizard() {
                           1 文字幅まで潰れて縦書きのように見える。 */}
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 11, color: "var(--ink-3)" }}>{row.label}</div>
-                        <div style={{ fontSize: 14, fontWeight: 500 }}>{row.value}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 14, fontWeight: 500, minWidth: 0 }}>
+                          {row.value}
+                        </div>
                       </div>
                       <button className="btn btn-ghost" onClick={() => startEditing(row.goto)} style={{ flex: "none", fontSize: 12 }}>編集</button>
                     </div>
